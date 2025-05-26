@@ -1,0 +1,4 @@
+venv/
+tests/
+.env
+requirements.txt
