@@ -2,7 +2,8 @@ venv/
 .env
 requirements.txt
 *.pyc
-
+tests/data/
+# Python virtual environment
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

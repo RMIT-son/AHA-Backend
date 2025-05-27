@@ -55,7 +55,7 @@ class ContextualResponder():
             llm_client.set_temperature(self.rag_config["temperature"])
             # Query the LLM with contextualized prompt
             response = llm_client.query(prompt)
-            return response
+            return response, context
         except Exception as e:
             print("API error:", e)
 
