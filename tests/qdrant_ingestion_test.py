@@ -14,11 +14,16 @@ QDRANT_URL = os.getenv('QDRANT_URL')
 QDRANT_API_KEY = os.getenv('QDRANT_API_KEY')
 COLLECTION_NAME = os.getenv("QDRANT_COLLECTION")
 
-folder_path = "data"
+folder_path = "tests/data"  # Path to the folder containing documents
 
 # 1. Load all docs
 loaders = []
 loaders.append(DirectoryLoader(folder_path, glob="**/*.pdf", loader_cls=PyPDFLoader))
+loaders.append(DirectoryLoader(
+    path="tests/data",
+    glob="*/.txt",
+    loader_cls=lambda path: TextLoader(path, encoding="utf-8")
+))
 
 all_docs = []
 for loader in loaders:
