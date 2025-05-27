@@ -12,7 +12,7 @@ class QdrantRAGClient:
         # Load environment variables
         load_dotenv()
         self.qdrant_url = os.getenv("QDRANT_URL")
-        self.collection_name = os.getenv("QDRANT_COLLECTION")
+        self.collection_name = "test"
         self.api_key = os.getenv("QDRANT_API_KEY")
         self.n_points = n_points
 
