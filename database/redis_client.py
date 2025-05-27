@@ -5,6 +5,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class RedisClient:
+    """
+    A simple Redis client wrapper for fetching configuration values stored in Redis.
+    Configuration includes host, port, and password which are loaded from environment variables.
+    """
     def __init__(self):
         self.host = os.getenv("REDIS_HOST")
         self.port = int(os.getenv("REDIS_PORT"))
@@ -18,5 +22,5 @@ class RedisClient:
             decode_responses=True
         )
     
-    def get(self, configuration):
+    def get(self, configuration: str):
         return self.client.get(configuration)
