@@ -10,10 +10,11 @@ from ragas.metrics import (
     answer_relevancy,
     context_precision,
 )
-from datasets import load_dataset
 from modules.text_processing.contextual_responder import ContextualResponder
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
+from rich import print
+import json
 import os
 
 # Load environment variables
@@ -21,12 +22,16 @@ load_dotenv()
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
 # Load the dataset from Hugging Face
-dataset = load_dataset("Mreeb/Dermatology-Question-Answer-Dataset-For-Fine-Tuning")
-data = dataset['train']
+file_path = "tests/data/medmcqa_derm.jsonl"
+data = []
 
-# Prepare question and answer arrays (e.g., first 10 for evaluation)
-sample_queries = [item['prompt'] for item in data.select(range(5))]
-responses = [item['response'] for item in data.select(range(5))]
+with open(file_path, "r", encoding="utf-8") as f:
+    for line in f:
+        data.append(json.loads(line))
+
+# Prepare question and answer arrays (e.g., first 5 for evaluation)
+questions = [item['question'] for item in data[:20]]
+answers = [item['answer'] for item in data[:20]]
 
 # Initialize components
 llm = ChatOpenAI(model="gpt-4o")
@@ -35,17 +40,17 @@ response_generator = ContextualResponder()
 evaluation_data = []
 
 # Build the evaluation dataset
-for query, reference in zip(sample_queries, responses):
-    r = response_generator.rag_response(query)
+for question, answer in zip(questions, answers):
+    r = response_generator.rag_response(question)
     response = r["response"]
     context = r["context"]
 
     # Append to RAGAS evaluation dataset
     evaluation_data.append({
-        "user_input": query,
+        "user_input": question,
         "retrieved_contexts": [context],
         "response": response,
-        "reference": reference
+        "reference": answer
     })
 
 # Create EvaluationDataset object
