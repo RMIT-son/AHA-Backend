@@ -3,7 +3,7 @@ from database.qdrant_client import QdrantRAGClient
 from database.redis_client import RedisClient
 from modules.orchestration.llm_gateway import LLMClient
 
-qdrant_client = QdrantRAGClient()
+qdrant_client = QdrantRAGClient(model_name="BAAI/bge-large-en-v1.5")
 redis_client = RedisClient()
 llm_client = LLMClient()
 
@@ -39,7 +39,7 @@ class ContextualResponder():
         """
         try:
             # Retrieve relevant documents from Qdrant
-            results = qdrant_client.query(query, vector_name="text-embedding")
+            results = qdrant_client.query(query, vector_name="text-embedding", n_points=3)
             # Build context from retrieved documents
             context = "\n".join(r.payload["text"] for r in results.points)
             # Construct the prompt using retrieved context and original query
@@ -55,7 +55,7 @@ class ContextualResponder():
             llm_client.set_temperature(self.rag_config["temperature"])
             # Query the LLM with contextualized prompt
             response = llm_client.query(prompt)
-            return response, context
+            return {"response": response, "context": context}
         except Exception as e:
             print("API error:", e)
 
