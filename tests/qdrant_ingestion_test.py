@@ -5,6 +5,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 import uuid
 import os
+from rich import print
 from math import ceil
 from dotenv import load_dotenv
 
