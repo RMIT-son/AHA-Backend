@@ -30,7 +30,7 @@ def llm_response(input: QueryInput):
 def rag_response(input: QueryInput):
     try:
         response = responder.rag_response(input.query)
-        return {"response": response}
+        return {"response": response["response"], "context": response["context"]}
     except Exception as e:
         return {"error": str(e)}
 
@@ -38,7 +38,7 @@ def rag_response(input: QueryInput):
 def task_response(input: QueryInput):
     try:
         task_definition = responder.task_response(input.query)
-        response = responder.rag_response(input.query) if task_definition == "medical" else responder.llm_response(input.query)
+        response = responder.rag_response(input.query)["response"] if task_definition == "medical" else responder.llm_response(input.query)
         return {
             "task_definition": task_definition, 
             "response": response

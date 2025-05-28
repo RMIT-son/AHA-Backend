@@ -2,7 +2,7 @@ from qdrant_client import QdrantClient
 from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader, TextLoader, CSVLoader, JSONLoader
 from qdrant_client import models
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+from sentence_transformers import SentenceTransformer
 import uuid
 import os
 from math import ceil
@@ -14,11 +14,27 @@ QDRANT_URL = os.getenv('QDRANT_URL')
 QDRANT_API_KEY = os.getenv('QDRANT_API_KEY')
 COLLECTION_NAME = os.getenv("QDRANT_COLLECTION")
 
-folder_path = "data"
+print(f"Qdrant URL: {QDRANT_URL}")
+print(f"Collection Name: {COLLECTION_NAME}")
+
+folder_path = "tests/data"
+
+# Check if folder exists
+if not os.path.exists(folder_path):
+    print(f"ERROR: Folder '{folder_path}' does not exist!")
+    exit(1)
+
+print(f"Folder exists: {folder_path}")
+print(f"Files in folder: {os.listdir(folder_path)}")
 
 # 1. Load all docs with debug output
 loaders = []
 loaders.append(DirectoryLoader(folder_path, glob="**/*.pdf", loader_cls=PyPDFLoader))
+loaders.append(DirectoryLoader(
+    path=folder_path,
+    glob="**/*.txt",
+    loader_cls=lambda path: TextLoader(path, encoding="utf-8")
+))
 
 all_docs = []
 for i, loader in enumerate(loaders):
@@ -41,8 +57,8 @@ for i, doc in enumerate(all_docs[:3]):  # Show first 3 docs
 
 # 2. Split each doc into chunks with debug output
 text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=512,
-    chunk_overlap=50,
+    chunk_size=1000,
+    chunk_overlap=100,
 )
 
 all_chunks = []
@@ -65,7 +81,7 @@ except Exception as e:
     print(f"ERROR connecting to Qdrant: {e}")
     exit(1)
 
-collection_name = "test"
+collection_name = COLLECTION_NAME
 print(f"Using collection: {collection_name}")
 
 if not client.collection_exists(collection_name=collection_name):
@@ -74,7 +90,7 @@ if not client.collection_exists(collection_name=collection_name):
         collection_name=collection_name,
         vectors_config={
             "text-embedding": models.VectorParams(
-                size=384, # Dimension of text embeddings
+                size=1024, # Dimension of text embeddings
                 distance=models.Distance.COSINE # Cosine similarity
             )
         }
@@ -86,7 +102,7 @@ else:
 # 4. Embed and prepare Qdrant points
 print("Loading embedding model...")
 try:
-    embedder = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    embedder = SentenceTransformer("BAAI/bge-large-en-v1.5")
     print("Embedding model loaded successfully")
 except Exception as e:
     print(f"ERROR loading embedding model: {e}")
@@ -99,7 +115,7 @@ for i, chunk in enumerate(all_chunks):
         print(f"Processing chunk {i+1}/{len(all_chunks)}")
     
     try:
-        embedding = embedder.embed_query(chunk.page_content)
+        embedding = embedder.encode(chunk.page_content, show_progress_bar=True)
         point = models.PointStruct(
             id=str(uuid.uuid4()),
             vector={"text-embedding": embedding},
