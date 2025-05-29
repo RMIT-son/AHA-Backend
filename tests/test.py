@@ -1,40 +1,32 @@
-import sys
-import os
-import dspy
-from dspy.datasets import HotPotQA
-from dspy.teleprompt import BootstrapFewShot
-from dspy.evaluate.evaluate import Evaluate
+from database.qdrant_client import QdrantRAGClient
+from database.redis_client import RedisClient
+from modules.orchestration.llm_gateway import GeneralLLM
+import json
 from rich import print
 
-# 1. Configuration & Data Loading
-lm = dspy.LM(
-    model='gpt-4o-mini',
-    model_config={
-        'temperature': 0.7,
-        'max_tokens': 300,
-        'top_p': 1.0,
-        'frequency_penalty': 0.0,
-        'presence_penalty': 0.0
-    }
-)
+# Load Configuration
+redis_client = RedisClient()
+rag_config = json.loads(redis_client.get("rag"))
+llm_config = json.loads(redis_client.get("llm"))
 
-dspy.configure(lm=lm)
+# Clients
+qdrant_client = QdrantRAGClient(model_name="BAAI/bge-large-en-v1.5")
 
-# 2. Basic Chatbot
-class BasicQA(dspy.Signature):  # A. Signature
-    """Answer questions with short factoid answers."""
-    question = dspy.InputField()
-    rationale = dspy.OutputField()
-    answer = dspy.OutputField()
+# Example Usage
+question="Can you give me a piece of useful information in your provided context?"
+response_generator = GeneralLLM(config=llm_config)
+result = response_generator.forward(question)
+print(f"[bold blue]Question:[/bold blue] {question}\n")
+print(f"[bold red]Reasoning:[/bold red] {result.reasoning}\n[bold green]General LLM Answer:[/bold green] {result.answer}\n")
 
-print("\n### Generate Response ###\n")
-generate_answer = dspy.Predict(BasicQA)
-question = "In a patient with metastatic melanoma who is responding to pembrolizumab but develops severe bullous pemphigoid, would you discontinue immunotherapy, and how would you manage the autoimmune skin toxicity without compromising cancer treatment?"
-pred = generate_answer(question=question)
-print(f"Question: {question}\nPredicted Answer: {pred.answer}")
 
-# 3. Chatbot with Chain of Thought
-print("\n### Generate Response with Chain of Thought ###\n")
-generate_answer_with_chain_of_thought = dspy.ChainOfThought(BasicQA)
-pred = generate_answer_with_chain_of_thought(question=question)
-print(f"Question: {question}\nThought: {pred.rationale.split('.', 1)[1].strip()}\nPredicted Answer: {pred.answer}")
+response_generator_rag = GeneralLLM(config=rag_config)
+context = qdrant_client.retrieve(question, vector_name="text-embedding", n_points=3)
+prompt = f"""{context}
+            
+            Question
+            {question}
+            Answer:"""
+result = response_generator_rag.forward(prompt)
+print(f"[bold red]Reasoning:[/bold red] {result.reasoning}\n[bold green]RAG Answer:[/bold green] {result.answer}\n")
+

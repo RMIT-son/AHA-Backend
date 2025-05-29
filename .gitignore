@@ -3,6 +3,7 @@ venv/
 requirements.txt
 *.pyc
 tests/data/
+tests/test.py
 # Python virtual environment
 
 # Byte-compiled / optimized / DLL files
