@@ -1,32 +1,56 @@
-from database.qdrant_client import QdrantRAGClient
-from database.redis_client import RedisClient
-from modules.orchestration.llm_gateway import GeneralLLM
-import json
+from qdrant_client import QdrantClient
+from qdrant_client import models
+from sentence_transformers import SentenceTransformer
+import uuid
+import os
+from datasets import load_dataset
 from rich import print
+from dotenv import load_dotenv
 
-# Load Configuration
-redis_client = RedisClient()
-rag_config = json.loads(redis_client.get("rag"))
-llm_config = json.loads(redis_client.get("llm"))
+load_dotenv()
 
-# Clients
-qdrant_client = QdrantRAGClient(model_name="BAAI/bge-large-en-v1.5")
+QDRANT_URL = os.getenv('QDRANT_URL')
+QDRANT_API_KEY = os.getenv('QDRANT_API_KEY')
+COLLECTION_NAME = os.getenv("QDRANT_COLLECTION")
 
-# Example Usage
-question="Can you give me a piece of useful information in your provided context?"
-response_generator = GeneralLLM(config=llm_config)
-result = response_generator.forward(question)
-print(f"[bold blue]Question:[/bold blue] {question}\n")
-print(f"[bold red]Reasoning:[/bold red] {result.reasoning}\n[bold green]General LLM Answer:[/bold green] {result.answer}\n")
+print(f"Qdrant URL: {QDRANT_URL}")
+print(f"Collection Name: {COLLECTION_NAME}")
 
+dataset = load_dataset("Mreeb/Dermatology-Question-Answer-Dataset-For-Fine-Tuning")
 
-response_generator_rag = GeneralLLM(config=rag_config)
-context = qdrant_client.retrieve(question, vector_name="text-embedding", n_points=3)
-prompt = f"""{context}
-            
-            Question
-            {question}
-            Answer:"""
-result = response_generator_rag.forward(prompt)
-print(f"[bold red]Reasoning:[/bold red] {result.reasoning}\n[bold green]RAG Answer:[/bold green] {result.answer}\n")
+data = dataset["train"]
 
+samples = data.select(range(1000))
+
+client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+
+embedder = SentenceTransformer('BAAI/bge-large-en-v1.5')
+
+answers = samples['response'] 
+
+if not client.collection_exists(collection_name="derma-answers"):
+    print(f"Creating collection derma-answers...")
+    client.create_collection(
+        collection_name="derma-answers",
+        vectors_config={
+            "text-embedding": models.VectorParams(
+                size=1024, # Dimension of text embeddings
+                distance=models.Distance.COSINE # Cosine similarity
+            )
+        }
+    )
+    print(f"Collection derma-answers created successfully")
+else:
+    print(f"Collection derma-answers already exists")
+
+embeddings = embedder.encode(answers, convert_to_numpy=True)
+points = [
+    models.PointStruct(
+        id=str(uuid.uuid4()),
+        vector={"text-embedding": embedding},
+        payload={"text": answer, "question": samples[i]["prompt"]}
+    )
+    for i, (embedding, answer) in enumerate(zip(embeddings, answers))
+]
+
+client.upsert(collection_name="derma-answers", points=points)
