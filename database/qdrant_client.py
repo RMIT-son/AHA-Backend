@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
+from qdrant_client import models
 
 load_dotenv()
 class QdrantRAGClient:
@@ -12,14 +13,13 @@ class QdrantRAGClient:
     def __init__(self, model_name: str):
         # Load environment variables
         self.qdrant_url = os.getenv("QDRANT_URL")
-        self.collection_name = os.getenv("QDRANT_COLLECTION")
         self.api_key = os.getenv("QDRANT_API_KEY")
 
         # Initialize Qdrant client and embedding model
         self.client = QdrantClient(url=self.qdrant_url, api_key=self.api_key)
         self.embedder = SentenceTransformer(model_name)
 
-    def retrieve(self, question: str, vector_name: str, n_points: int):
+    def retrieve(self, question: str, vector_name: str, n_points: int, collection_name:str):
         """
         Embeds the input question and retrieves the top matching points from Qdrant.
 
@@ -32,7 +32,7 @@ class QdrantRAGClient:
         """
         embedded_query = self.embedder.encode(question)
         results = self.client.query_points(
-            collection_name=self.collection_name,
+            collection_name=collection_name,
             query=embedded_query,
             using=vector_name,
             limit=n_points,

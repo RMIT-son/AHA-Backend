@@ -7,8 +7,8 @@ qdrant_client = QdrantRAGClient(model_name="BAAI/bge-large-en-v1.5")
 
 # Get model configuration from redis
 redis_client = RedisClient()
-rag_config = json.loads(redis_client.get("rag"))
 llm_config = json.loads(redis_client.get("llm"))
+rag_config = json.loads(redis_client.get("rag"))
 task_classifier_config = json.loads(redis_client.get("task_classifier"))
 
 class ContextualResponder():
@@ -19,8 +19,8 @@ class ContextualResponder():
     def __init__(self):
         try:
             self.general_llm = GeneralLLM(config=llm_config)
-            self.task_classifier = GeneralLLM(config=task_classifier_config)
             self.rag_llm = GeneralLLM(config=rag_config)
+            self.task_classifier = GeneralLLM(config=task_classifier_config)
             
         except Exception as e:
             print(f"Error initializing ContextualResponder: {e}")
@@ -41,7 +41,7 @@ class ContextualResponder():
         Generate a response using Retrieval-Augmented Generation (RAG).
         """
         try:
-            context = qdrant_client.retrieve(query, vector_name="text-embedding", n_points=3)
+            context = qdrant_client.retrieve(query, vector_name="text-embedding", n_points=2, collection_name="derma-answers")
             prompt = f"""{context}
             
                         Question

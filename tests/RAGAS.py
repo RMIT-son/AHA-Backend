@@ -1,7 +1,11 @@
-from ragas import evaluate
-from ragas.llms import LangchainLLMWrapper
-from dotenv import load_dotenv
+import json
 from langchain_openai import ChatOpenAI
+from rich import print
+from sklearn.metrics.pairwise import cosine_similarity
+from ragas import evaluate
+from datasets import load_dataset
+from dotenv import load_dotenv
+from ragas.llms import LangchainLLMWrapper
 from langchain_huggingface import HuggingFaceEmbeddings
 from ragas.embeddings import LangchainEmbeddingsWrapper
 from langchain_anthropic import ChatAnthropic
@@ -13,13 +17,10 @@ from ragas.metrics import (
     answer_relevancy,
     context_precision,
 )
-from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
-from rich import print
-import json
+from modules.text_processing.contextual_responder import ContextualResponder
 import os
 from tqdm import tqdm
-from modules.text_processing.contextual_responder import ContextualResponder
 
 # Load environment variables
 load_dotenv()
@@ -35,20 +36,29 @@ os.environ["ANTHROPIC_API_KEY"] = os.getenv("ANTHROPIC_API_KEY")
 # questions = [item['question'] for item in data[:5]]
 # answers = [item['answer'] for item in data[:5]]
 
-import csv
+# import csv
 
-file_path = "tests/data/dermatology_qa_cleaned.csv"
-data = []
+# file_path = "tests/data/dermatology_qa_cleaned.csv"
+# data = []
 
-# Read CSV file
-with open(file_path, "r", encoding="utf-8") as f:
-    reader = csv.DictReader(f)
-    for row in reader:
-        data.append(row)
+# # Read CSV file
+# with open(file_path, "r", encoding="utf-8") as f:
+#     reader = csv.DictReader(f)
+#     for row in reader:
+#         data.append(row)
+
+# Load the full dataset
+dataset = load_dataset("Mreeb/Dermatology-Question-Answer-Dataset-For-Fine-Tuning")
+
+# Access the train split (adjust if using another)
+samples = dataset["train"]
+
+# Select the first 1000 samples
+data = samples.select(range(20))
 
 # Extract questions and answers
-questions = [item['question'] for item in data[:1]]
-answers = [item['answer'] for item in data[:1]]
+questions = data['prompt'][:10]
+answers = data['response'][:10]
 
 # Initialize your models
 llm = ChatAnthropic(model="claude-3-5-haiku-20241022")
@@ -115,6 +125,6 @@ print(result)
 print("\n=== Retrieval Cosine Similarity ===")
 for item in evaluation_data:
     q_emb = embeddings.encode(item["user_input"])
-    c_emb = embeddings.encode(item["retrieved_contexts"][0])  # Fixed indexing
+    c_emb = embeddings.encode(item["retrieved_contexts"][0])
     similarity = cosine_similarity([q_emb], [c_emb])[0][0]
     print(f"Query: {item['user_input'][:40]}... | Cosine Similarity: {similarity:.4f}")
