@@ -1,14 +1,16 @@
+from modules.text_processing.RAG import RAG
+from database.qdrant_client import QdrantRAGClient
+from database.redis_client import RedisClient
 import json
-from langchain_openai import ChatOpenAI
 from rich import print
 from sklearn.metrics.pairwise import cosine_similarity
 from ragas import evaluate
 from datasets import load_dataset
 from dotenv import load_dotenv
 from ragas.llms import LangchainLLMWrapper
-from langchain_huggingface import HuggingFaceEmbeddings
+from sentence_transformers import SentenceTransformer
 from ragas.embeddings import LangchainEmbeddingsWrapper
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import OpenAI
 from ragas import EvaluationDataset
 from ragas.metrics import (
     context_recall,
@@ -18,34 +20,11 @@ from ragas.metrics import (
     context_precision,
 )
 from sentence_transformers import SentenceTransformer
-from modules.text_processing.contextual_responder import ContextualResponder
 import os
 from tqdm import tqdm
 
 # Load environment variables
 load_dotenv()
-os.environ["ANTHROPIC_API_KEY"] = os.getenv("ANTHROPIC_API_KEY")
-
-# file_path = "tests/data/medmcqa_derm.jsonl"
-# data = []
-
-# with open(file_path, "r", encoding="utf-8") as f:
-#     for line in f:
-#         data.append(json.loads(line))
-
-# questions = [item['question'] for item in data[:5]]
-# answers = [item['answer'] for item in data[:5]]
-
-# import csv
-
-# file_path = "tests/data/dermatology_qa_cleaned.csv"
-# data = []
-
-# # Read CSV file
-# with open(file_path, "r", encoding="utf-8") as f:
-#     reader = csv.DictReader(f)
-#     for row in reader:
-#         data.append(row)
 
 # Load the full dataset
 dataset = load_dataset("Mreeb/Dermatology-Question-Answer-Dataset-For-Fine-Tuning")
@@ -57,20 +36,27 @@ samples = dataset["train"]
 data = samples.select(range(20))
 
 # Extract questions and answers
-questions = data['prompt'][:10]
-answers = data['response'][:10]
+questions = data['prompt'][:1]
+answers = data['response'][:1]
 
 # Initialize your models
-llm = ChatAnthropic(model="claude-3-5-haiku-20241022")
-embeddings = SentenceTransformer("BAAI/bge-large-en-v1.5")
-response_generator = ContextualResponder()
+redis_client = RedisClient()
+rag_config = json.loads(redis_client.get("rag"))
+llm = OpenAI(
+    model=rag_config['model'], 
+    api_key=os.getenv('OPEN_ROUTER_API_KEY'),
+    base_url=os.getenv('OPEN_ROUTER_URL')
+)
+# embeddings = SentenceTransformer("BAAI/bge-large-en-v1.5")
+embeddings = SentenceTransformer("dangvantuan/vietnamese-embedding")
 evaluation_data = []
 
+qdrant_client = QdrantRAGClient(model_name="./models/multilingual-e5-large")
+rag = RAG(config=rag_config)
 # Build the evaluation dataset
 for question, answer in tqdm(zip(questions, answers), desc="QnA Processing..."):
-    r = response_generator.rag_response(question)
-    response = r["response"]
-    context = r["context"]
+    context = qdrant_client.retrieve(question=question, vector_name="text-embedding", n_points=5, collection_name="multilingual")
+    response = rag.forward(prompt=question, context=context)
 
     # Append to RAGAS evaluation dataset
     evaluation_data.append({
@@ -87,10 +73,7 @@ evaluation_dataset = EvaluationDataset.from_list(evaluation_data)
 evaluator_llm = LangchainLLMWrapper(llm)
 
 # Create embeddings wrapper for RAGAS
-hf_embeddings = HuggingFaceEmbeddings(
-    model_name="BAAI/bge-large-en-v1.5",
-    model_kwargs={'device': 'cpu'}  # or 'cuda' if you have GPU
-)
+hf_embeddings = SentenceTransformer("intfloat/multilingual-e5-large")
 evaluator_embeddings = LangchainEmbeddingsWrapper(hf_embeddings)
 
 # Configure metrics with custom LLM and embeddings

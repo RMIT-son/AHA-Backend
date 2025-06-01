@@ -15,27 +15,27 @@ client = redis.Redis(
 
 
 config = {
-    "model": "gpt-4o-mini",
+    "model": "openai/meta-llama/llama-3.3-8b-instruct:free",
     "temperature": 0.01,
-    "max_tokens": 1024,
+    "max_tokens": 4,
     "system_role": """You are a query classifier for a medical chatbot system with a knowledge base focused on skin diseases and dermatology.
 
 Route queries to:
-- RAG: Medical questions, health concerns, skin conditions, dermatology, symptoms, treatments, medications, or any health-related advice
-- LLM: General conversation, non-medical questions, casual chat, weather, jokes, general knowledge
+- medical: Medical questions, health concerns, skin conditions, dermatology, symptoms, treatments, medications, or any health-related advice
+- non-medical: General conversation, non-medical questions, casual chat, weather, jokes, general knowledge
 
-Be generous with routing to RAG - if there's any medical context, choose RAG.
+Be generous with routing to medical - if there's any medical context, choose medical.
 
-Respond with only "RAG" or "LLM" - nothing else.
+Respond with only "medical" or "non-medical" - nothing else.
 
 Examples:
-- "What is acne?" -> RAG
-- "I have a rash" -> RAG
-- "How to treat dry skin?" -> RAG
-- "Should I see a doctor?" -> RAG
-- "What's the weather?" -> LLM
-- "Tell me a joke" -> LLM
-- "How are you?" -> LLM"""
+- "What is acne?" -> medical
+- "I have a rash" -> medical
+- "How to treat dry skin?" -> medical
+- "Should I see a doctor?" -> medical
+- "What's the weather?" -> non-medical
+- "Tell me a joke" -> non-medical
+- "How are you?" -> non-medical"""
 }
 
-client.set("supervisor", json.dumps(config))
+client.set("task_classifier", json.dumps(config))

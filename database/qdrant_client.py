@@ -40,24 +40,3 @@ class QdrantRAGClient:
         context = "\n".join(r.payload["text"] for r in results.points)
         return context
     
-import os
-from dotenv import load_dotenv
-from qdrant_client import QdrantClient
-from qdrant_client.http.models import Distance, VectorParams, PointStruct
-
-load_dotenv()
-
-QDRANT_URL = os.getenv("QDRANT_URL")
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-
-client = QdrantClient(
-    url=QDRANT_URL,
-    api_key=QDRANT_API_KEY,
-    timeout=30.0
-)
-
-def init_collection(name, vector_size):
-    client.recreate_collection(
-        collection_name=name,
-        vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE)
-    )
