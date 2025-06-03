@@ -2,7 +2,7 @@ venv/
 .env
 requirements.txt
 *.pyc
-tests/data/
+tests/
 models/
 # Python virtual environment
 
@@ -10,3 +10,4 @@ models/
 __pycache__/
 *.py[cod]
 *$py.class
+evaluation_20_qa.csv

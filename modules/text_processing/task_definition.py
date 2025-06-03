@@ -6,6 +6,7 @@ class Task(dspy.Signature):
     task: Literal['medical', 'non-medical'] = dspy.OutputField()
 
 class TaskClassifier(dspy.Module):
+    """Model to classify task into medical or non medical"""
     def __init__(self, config: dict):
         super().__init__()
         self.model = config["model"]
@@ -14,5 +15,5 @@ class TaskClassifier(dspy.Module):
         Task.__doc__ = config['instruction']
         self.clasify = dspy.Predict(Task, temperature=self.temperature, max_tokens=self.max_tokens)
     
-    def forward(self, prompt):
+    def forward(self, prompt) -> str:
         return self.clasify(prompt=prompt).task
