@@ -6,6 +6,7 @@ class RAGResponse(dspy.Signature):
     response: str = dspy.OutputField()
 
 class RAG(dspy.Module):
+    """Model to generate responses based on the retrieved context"""
     def __init__(self, config: dict):
         super().__init__()
         self.model = config["model"]
@@ -14,5 +15,5 @@ class RAG(dspy.Module):
         RAGResponse.__doc__ = config['instruction']
         self.response = dspy.Predict(RAGResponse, temperature=self.temperature, max_tokens=self.max_tokens)
     
-    def forward(self, context, prompt):
+    def forward(self, context, prompt) -> str:
         return self.response(context=context, prompt=prompt).response

@@ -22,5 +22,5 @@ class RedisClient:
             decode_responses=True
         )
     
-    def get(self, configuration: str):
+    def get(self, configuration: str) -> dict:
         return self.client.get(configuration)
