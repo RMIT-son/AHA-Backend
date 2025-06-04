@@ -13,7 +13,6 @@ from database.qdrant_client import QdrantRAGClient
 from modules.text_processing.LLM import LLM
 from modules.text_processing.RAG import RAG
 from modules.text_processing.task_definition import TaskClassifier
-from tests.dspy_test import MyProgram  # Possibly unused
 
 # === FastAPI App Initialization ===
 app = FastAPI()
@@ -34,7 +33,7 @@ llm_config = json.loads(redis_client.get("llm"))
 task_classifier_config = json.loads(redis_client.get("task_classifier"))
 
 # === Qdrant Client Initialization for RAG ===
-qdrant_client = QdrantRAGClient(model_name="./models/multilingual-e5-large")
+qdrant_client = QdrantRAGClient(model_name="intfloat/multilingual-e5-small") # ./models/multilingual-e5-large
 
 # === DSPy LLM Setup ===
 lm = dspy.LM(
@@ -47,7 +46,8 @@ lm = dspy.LM(
 dspy.settings.configure(lm=lm)
 
 # === LLM Warmup for Faster First Inference ===
-_ = lm("Say one word.")  # Warm-up call to reduce cold-start latency
+_ = lm("Say one word.")
+QDRANT_COLLECTION=os.getenv('COLLECTION_NAME')
 
 # === DSPy-based Wrappers Initialization ===
 llm = LLM(config=llm_config)
@@ -80,11 +80,10 @@ def rag_response(input: QueryInput):
     """
     try:
         start = time.time()
-        context = qdrant_client.retrieve(
+        context = qdrant_client.hybrid_search(
             question=input.query,
-            vector_name="text-embedding",
-            n_points=10,
-            collection_name="multilingual"
+            n_points=3,
+            collection_name=QDRANT_COLLECTION
         )
         response = rag.forward(context=context, prompt=input.query)
         print("RAG inference took", time.time() - start)
@@ -105,11 +104,10 @@ def task_response(input: QueryInput):
         
         if task_definition == "medical":
             # For medical queries, retrieve external context before responding
-            context = qdrant_client.retrieve(
+            context = qdrant_client.hybrid_search(
                 question=input.query,
-                vector_name="text-embedding",
-                n_points=5,
-                collection_name="multilingual"
+                n_points=3,
+                collection_name=QDRANT_COLLECTION
             )
             response = rag.forward(context=context, prompt=input.query)
         else:
