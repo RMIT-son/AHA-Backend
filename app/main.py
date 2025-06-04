@@ -33,7 +33,7 @@ llm_config = json.loads(redis_client.get("llm"))
 task_classifier_config = json.loads(redis_client.get("task_classifier"))
 
 # === Qdrant Client Initialization for RAG ===
-qdrant_client = QdrantRAGClient(model_name="intfloat/multilingual-e5-small") # ./models/multilingual-e5-large
+qdrant_client = QdrantRAGClient()
 
 # === DSPy LLM Setup ===
 lm = dspy.LM(
@@ -47,7 +47,7 @@ dspy.settings.configure(lm=lm)
 
 # === LLM Warmup for Faster First Inference ===
 _ = lm("Say one word.")
-QDRANT_COLLECTION=os.getenv('COLLECTION_NAME')
+QDRANT_COLLECTION=os.getenv('QDRANT_COLLECTION')
 
 # === DSPy-based Wrappers Initialization ===
 llm = LLM(config=llm_config)
@@ -106,7 +106,7 @@ def task_response(input: QueryInput):
             # For medical queries, retrieve external context before responding
             context = qdrant_client.hybrid_search(
                 question=input.query,
-                n_points=3,
+                n_points=5,
                 collection_name=QDRANT_COLLECTION
             )
             response = rag.forward(context=context, prompt=input.query)

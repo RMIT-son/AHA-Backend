@@ -1,12 +1,13 @@
 import os
-from dotenv import load_dotenv
+import uuid
+import torch
+from typing import List
+from ranx import fuse, Run
+from qdrant_client.http import models
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
-from tests.SPLADE_test import compute_sparse_vector
-from qdrant_client.http import models
-from ranx import fuse, Run
-from typing import List
-import uuid
+from transformers import AutoModelForMaskedLM, AutoTokenizer
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -15,7 +16,7 @@ class QdrantRAGClient:
     Client for performing retrieval from a Qdrant vector database using sentence embeddings.
     Embedding is performed with a HuggingFace model; results are used for RAG.
     """
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str = "intfloat/multilingual-e5-small", model_s: str = "naver/splade-cocondenser-ensembledistil"):
         # Load environment variables
         self.qdrant_url = os.getenv("QDRANT_URL")
         self.api_key = os.getenv("QDRANT_API_KEY")
@@ -23,7 +24,28 @@ class QdrantRAGClient:
         # Initialize Qdrant client and embedding model
         self.client = QdrantClient(url=self.qdrant_url, api_key=self.api_key)
         self.embedder = SentenceTransformer(model_name)
+
+        self.tokenizer = AutoTokenizer.from_pretrained(model_s)
+        self.model_s = AutoModelForMaskedLM.from_pretrained(model_s)
         
+    def compute_sparse_vector(self, text: str):
+        """
+        Computes a vector from logits and attention mask using ReLU, log, and max operations.
+        """
+        tokens = self.tokenizer(text, return_tensors="pt")
+        output = self.model_s(**tokens)
+        logits, attention_mask = output.logits, tokens.attention_mask
+        relu_log = torch.log(1 + torch.relu(logits))
+        weighted_log = relu_log * attention_mask.unsqueeze(-1)
+        max_val, _ = torch.max(weighted_log, dim=1)
+        vec = max_val.squeeze()
+
+        # Convert dense vector to sparse: get non-zero indices and values
+        indices = torch.nonzero(vec).squeeze().tolist()
+        values = vec[indices].tolist()
+
+        return indices, values
+    
     def _rrf(self, results: List[models.PointStruct] = None, n_points: int = None) -> str:
         """
         Perform Reciprocal Rank Fusion (RRF) on dense and sparse Qdrant search results
@@ -96,7 +118,7 @@ class QdrantRAGClient:
         return context
 
 
-    def hybrid_search(self, question: str = None, collection_name: str = None, limit: int = 10, n_points: int = 3) -> str:
+    def hybrid_search(self, question: str = None, collection_name: str = None, limit: int = 15, n_points: int = 3) -> str:
         """
         Perform hybrid search using both dense and sparse vectors with Reciprocal Rank Fusion (RRF) from ranx.
         
@@ -111,7 +133,7 @@ class QdrantRAGClient:
         """
         # Generate query vectors
         embedded_query = self.embedder.encode(question)
-        query_indices, query_values = compute_sparse_vector(question)
+        query_indices, query_values = self.compute_sparse_vector(question)
         
         # Perform separate searches for dense and sparse vectors
         results = self.client.search_batch(
