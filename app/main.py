@@ -6,6 +6,7 @@ import json
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from api.routes import conversation
 
 # === Local Module Imports ===
 from database.redis_client import RedisClient
@@ -18,6 +19,8 @@ from tests.dspy_test import MyProgram  # Possibly unused
 # === FastAPI App Initialization ===
 app = FastAPI()
 
+
+
 # === CORS Configuration for Local Frontend Access ===
 app.add_middleware(
     CORSMiddleware,
@@ -26,6 +29,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# === Load Conversation Router Variables ===
+app.include_router(conversation.router)
 
 # === Redis Configuration Retrieval ===
 redis_client = RedisClient()
