@@ -1,0 +1,13 @@
+venv/
+.env
+requirements.txt
+*.pyc
+tests/
+models/
+# Python virtual environment
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+evaluation_20_qa.csv
