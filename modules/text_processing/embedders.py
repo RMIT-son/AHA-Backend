@@ -1,13 +1,17 @@
+import torch
+import numpy as np
+from typing import List, Tuple
 from sentence_transformers import SentenceTransformer
 from transformers import AutoModelForMaskedLM, AutoTokenizer
-import torch
 
-dense_vector_embedder = SentenceTransformer("intfloat/multilingual-e5-small")
+model_d = "intfloat/multilingual-e5-small"
+dense_vector_embedder = SentenceTransformer(model_d) 
 
-tokenizer = AutoTokenizer.from_pretrained("naver/splade-cocondenser-ensembledistil")
-sparse_vector_embedder = AutoModelForMaskedLM.from_pretrained("naver/splade-cocondenser-ensembledistil")
+model_s = "naver/splade-cocondenser-ensembledistil"
+tokenizer = AutoTokenizer.from_pretrained(model_s)
+sparse_vector_embedder = AutoModelForMaskedLM.from_pretrained(model_s)
 
-def compute_sparse_vector(text: str):
+def compute_sparse_vector(text: str) -> Tuple[List[int], List[float]]:
         """
         Computes a vector from logits and attention mask using ReLU, log, and max operations.
         """
@@ -25,7 +29,7 @@ def compute_sparse_vector(text: str):
 
         return indices, values
 
-def compute_dense_vector(text: str):
+def compute_dense_vector(text: str) -> List[float] | np.ndarray:
         """Embeds text into dense vectors"""
         embedded_text = dense_vector_embedder.encode(text)
         return embedded_text
