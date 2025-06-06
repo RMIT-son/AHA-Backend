@@ -1,19 +1,20 @@
 import time
 from fastapi import APIRouter
 from database.schemas import QueryInput
+from database.redis_client import get_config
+from modules.llm_modules import RAG, LLM, Classifier
 from modules.orchestration.llm_gateway import set_lm_configure
-from modules.text_processing.classifier import classify_task
 from modules.text_processing.rag_engine import (
     hybrid_search,
-    rrf,
-    rag_response,
-    llm_response,
-    llm_config
+    rrf
 )
 
 router = APIRouter(prefix="/api/response", tags=["Text"])
 
-set_lm_configure(config=llm_config)
+set_lm_configure(config=get_config("llm"))
+llm_responder = LLM(config=get_config("llm"))
+rag_responder = RAG(config=get_config("rag"))
+classifier = Classifier(config=get_config("task_classifier"))
 
 @router.post("/llm")
 def llm(input: QueryInput):
@@ -22,7 +23,7 @@ def llm(input: QueryInput):
     """
     try:
         start = time.time()
-        response = llm_response(prompt=input.query)
+        response = llm_responder.forward(input.query)
         print("LLM inference took", time.time() - start)
         return {"response": response}
     except Exception as e:
@@ -35,9 +36,9 @@ def rag(input: QueryInput):
     """
     try:
         start = time.time()
-        points = hybrid_search(query=input.query, collection_name="dermatology", limit=5)
+        points = hybrid_search(query=input.query, collection_name="dermatology", limit=10)
         context = rrf(points=points, n_points=3)
-        response = rag_response(context=context, prompt=input.query)
+        response = rag_responder.forward(context=context, prompt=input.query)
         print("RAG inference took", time.time() - start)
         return {"response": response}
     except Exception as e:
@@ -51,14 +52,14 @@ def dynamic_response(input: QueryInput):
     """
     try:
         start = time.time()
-        task_definition = classify_task(input.query)
+        task_definition = classifier.forward(input.query)
         
         if task_definition == "non-medical":
-            response = llm_response(prompt=input.query)
+            response = llm_responder.forward(prompt=input.query)
         else:
-            points = hybrid_search(query=input.query, collection_name=task_definition, limit=5)
+            points = hybrid_search(query=input.query, collection_name=task_definition, limit=10)
             context = rrf(points=points, n_points=3)
-            response = rag_response(context=context, prompt=input.query)
+            response = rag_responder.forward(context=context, prompt=input.query)
 
         print("Dynamic response inference took", time.time() - start)
         return {

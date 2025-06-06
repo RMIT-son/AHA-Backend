@@ -1,12 +1,9 @@
 
 import uuid
-import json
-from typing import List
 from ranx import fuse, Run
-from modules.llm_modules import RAG, LLM
-from qdrant_client.http import models
+from qdrant_client import models
 from database.qdrant_client import qdrant_client
-from database.redis_client import redis_client
+from qdrant_client.conversions import common_types as types
 from modules.text_processing.embedders import (
         compute_dense_vector, 
         compute_sparse_vector
@@ -15,12 +12,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-rag_config = json.loads(redis_client.get("rag"))
-llm_config = json.loads(redis_client.get("llm"))    
-rag = RAG(config=rag_config)
-llm = LLM(config=llm_config)
-
-def hybrid_search(query: str = None, collection_name: str = None, limit: int = None) -> str:
+def hybrid_search(query: str = None, collection_name: str = None, limit: int = None) -> list[list[types.ScoredPoint]]:
         """
         Perform hybrid search using both dense and sparse vectors with Reciprocal Rank Fusion (RRF) from ranx.
         
@@ -67,7 +59,7 @@ def hybrid_search(query: str = None, collection_name: str = None, limit: int = N
         except Exception as e:
             return {"error": str(e)}
 
-def rrf(points: List[models.PointStruct] = None, n_points: int = None) -> str:
+def rrf(points: list[list[types.ScoredPoint]] = None, n_points: int = None) -> str:
         """
         Perform Reciprocal Rank Fusion (RRF) on dense and sparse Qdrant search results
         and return a combined context string from the top-ranked documents.
@@ -139,13 +131,3 @@ def rrf(points: List[models.PointStruct] = None, n_points: int = None) -> str:
             return context
         except Exception as e:
             return {"error": str(e)}
-
-def rag_response(context: str, prompt: str) -> str:
-    """Generate response based on the provided context from LLM"""
-    response = rag.forward(context=context, prompt=prompt)
-    return response
-
-def llm_response(prompt: str) -> str:
-    """Generate general response from LLM"""
-    response = llm.forward(prompt=prompt)
-    return response

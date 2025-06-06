@@ -12,10 +12,10 @@ class LLM(dspy.Module):
         self.model = config["model"]
         self.temperature = config["temperature"]    
         self.max_tokens = config["max_tokens"]
-        LLMResponse.__doc__ = config['instruction']
+        LLMResponse.__doc__ = config["instruction"]
         self.response = dspy.Predict(LLMResponse, temperature=self.temperature, max_tokens=self.max_tokens)
     
-    def forward(self, prompt) -> str:
+    def forward(self, prompt: str) -> str:
         return self.response(prompt=prompt).response
 
 class RAGResponse(dspy.Signature):
@@ -30,15 +30,15 @@ class RAG(dspy.Module):
         self.model = config["model"]
         self.temperature = config["temperature"]
         self.max_tokens = config["max_tokens"]
-        RAGResponse.__doc__ = config['instruction']
+        RAGResponse.__doc__ = config["instruction"]
         self.response = dspy.Predict(RAGResponse, temperature=self.temperature, max_tokens=self.max_tokens)
     
-    def forward(self, context, prompt) -> str:
+    def forward(self, context: str, prompt: str) -> str:
         return self.response(context=context, prompt=prompt).response
 
 class Task(dspy.Signature):
     prompt: str = dspy.InputField()
-    task: Literal['medical', 'dermatology'] = dspy.OutputField()
+    task: Literal["non-medical", "dermatology"] = dspy.OutputField()
 
 class Classifier(dspy.Module):
     """Model to classify task into medical or non medical"""
@@ -47,8 +47,8 @@ class Classifier(dspy.Module):
         self.model = config["model"]
         self.temperature = config["temperature"]
         self.max_tokens = config["max_tokens"]
-        Task.__doc__ = config['instruction']
+        Task.__doc__ = config["instruction"]
         self.clasify = dspy.Predict(Task, temperature=self.temperature, max_tokens=self.max_tokens)
     
-    def forward(self, prompt) -> str:
+    def forward(self, prompt: str) -> str:
         return self.clasify(prompt=prompt).task
