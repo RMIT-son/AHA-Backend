@@ -7,13 +7,14 @@ class Message(BaseModel):
     content: str
     timestamp: Optional[datetime] = None
 
+class Conversation(BaseModel):
+    id: str  # This will receive the converted _id
+    user_id: str
+    created_at: datetime
+    messages: List = []
+
 class ConversationCreate(BaseModel):
     user_id: str
-
-class Conversation(ConversationCreate):
-    id: str
-    created_at: datetime
-    messages: List[Message] = []
 
     class Config:
         orm_mode = True
