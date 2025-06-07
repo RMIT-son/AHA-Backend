@@ -1,6 +1,7 @@
 
 import uuid
 from ranx import fuse, Run
+from itertools import chain
 from qdrant_client import models
 from database.qdrant_client import qdrant_client
 from qdrant_client.conversions import common_types as types
@@ -12,14 +13,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-def hybrid_search(query: str = None, collection_name: str = None, limit: int = None) -> list[list[types.ScoredPoint]]:
+async def hybrid_search(query: str = None, collection_name: str = None, limit: int = None) -> list[types.QueryResponse]:
         """
         Perform hybrid search using both dense and sparse vectors with Reciprocal Rank Fusion (RRF) from ranx.
         
         Args:
             query: The search query
             collection_name: Name of the Qdrant collection
-            k: RRF parameter (typically 60, controls how much weight to give to lower-ranked results)
             limit: Number of final results to return
         
         Returns:
@@ -31,27 +31,23 @@ def hybrid_search(query: str = None, collection_name: str = None, limit: int = N
             query_indices, query_values = compute_sparse_vector(query)
             
             # Perform separate searches for dense and sparse vectors
-            results = qdrant_client.search_batch(
+            results = await qdrant_client.query_batch_points(
                 collection_name=collection_name,
                 requests=[
-                    models.SearchRequest(
-                        vector=models.NamedVector(
-                            name="text-embedding",
-                            vector=embedded_query,
-                        ),
+                    models.QueryRequest(
+                        query=embedded_query,
+                        using="text-embedding",
                         limit=limit,  # Get more results for better fusion
-                        with_payload=True,
+                        with_payload=True
                     ),
-                    models.SearchRequest(
-                        vector=models.NamedSparseVector(
-                            name="sparse-embedding", 
-                            vector=models.SparseVector(
-                                indices=query_indices,
-                                values=query_values,
-                            ),
+                    models.QueryRequest(
+                        query=models.SparseVector(
+                            indices=query_indices,
+                            values=query_values,
                         ),
                         limit=limit,  # Get more results for better fusion
                         with_payload=True,
+                        using="sparse-embedding"
                     ),
                 ],
             )
@@ -59,7 +55,7 @@ def hybrid_search(query: str = None, collection_name: str = None, limit: int = N
         except Exception as e:
             return {"error": str(e)}
 
-def rrf(points: list[list[types.ScoredPoint]] = None, n_points: int = None) -> str:
+def rrf(points: list[types.QueryResponse] = None, n_points: int = None) -> str:
         """
         Perform Reciprocal Rank Fusion (RRF) on dense and sparse Qdrant search results
         and return a combined context string from the top-ranked documents.
@@ -73,18 +69,16 @@ def rrf(points: list[list[types.ScoredPoint]] = None, n_points: int = None) -> s
         """
         try:
             # Separate dense and sparse results
-            dense_results = points[0]
-            sparse_results = points[1]
+            dense_results = points[0].points
+            sparse_results = points[1].points
             
             # Collect all unique document IDs from both dense and sparse results
             all_doc_ids = set()
-            for result in dense_results + sparse_results:
-                all_doc_ids.add(str(result.id))
-
-            # Map each document ID to its full result object for later retrieval
             all_results = {}
             for result in dense_results + sparse_results:
-                all_results[str(result.id)] = result
+                doc_id = str(result.id)
+                all_doc_ids.add(doc_id)
+                all_results[doc_id] = result
             
             # Use a synthetic query ID for ranx (only one query at a time)
             query_id = str(uuid.uuid4())
@@ -126,7 +120,7 @@ def rrf(points: list[list[types.ScoredPoint]] = None, n_points: int = None) -> s
             top_docs = [all_results[doc_id] for doc_id in top_ids]
 
             # Concatenate the text fields of the top documents into a single context string
-            context = "\n".join([doc.payload['text'] for doc in top_docs])
+            context = "\n".join([doc.payload.get('text', '') for doc in top_docs])
             
             return context
         except Exception as e:

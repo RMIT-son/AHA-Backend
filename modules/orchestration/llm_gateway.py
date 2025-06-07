@@ -9,8 +9,8 @@ def set_lm_configure(config: dict):
             model=config["model"],
             base_url=os.getenv("OPEN_ROUTER_URL"),
             api_key=os.getenv("OPEN_ROUTER_API_KEY"),
-            cache=True,
+            cache=False,
             track_usage=True,
             streaming=True
         )
-    dspy.settings.configure(lm=lm)
+    return lm

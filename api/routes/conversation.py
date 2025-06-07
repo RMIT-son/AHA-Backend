@@ -4,7 +4,6 @@ from database.queries import (
     create_conversation, get_all_conversations,
     get_conversation_by_id, add_message
 )
-from bson import ObjectId
 from fastapi.encoders import jsonable_encoder
 
 router = APIRouter(prefix="/api/conversations", tags=["Conversations"])

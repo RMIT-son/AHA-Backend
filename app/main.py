@@ -1,10 +1,10 @@
 # main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api import supervisor
+from api.supervisor import router, lifespan
 from api.routes import conversation
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 # === CORS Configuration for Local Frontend Access ===
 app.add_middleware(
@@ -19,5 +19,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(supervisor.router)
+app.include_router(router)
 app.include_router(conversation.router)

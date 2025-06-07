@@ -4,32 +4,59 @@ from typing import List, Tuple
 from sentence_transformers import SentenceTransformer
 from transformers import AutoModelForMaskedLM, AutoTokenizer
 
-model_d = "intfloat/multilingual-e5-small"
-dense_vector_embedder = SentenceTransformer(model_d) 
+_model_d = None
+_model_s_tokenizer = None
+_model_s_embedder = None
 
-model_s = "naver/splade-cocondenser-ensembledistil"
-tokenizer = AutoTokenizer.from_pretrained(model_s)
-sparse_vector_embedder = AutoModelForMaskedLM.from_pretrained(model_s)
+def get_dense_embedder():
+    """
+    Load dense embedder once
+    """
+    global _model_d
+    if _model_d is None:
+        print("Loading dense embedder model...")
+        _model_d = SentenceTransformer("intfloat/multilingual-e5-small")
+    return _model_d
+
+def get_sparse_embedder_and_tokenizer():
+    """
+    Load sparse embedder and tokenizer once
+    """
+    global _model_s_tokenizer, _model_s_embedder
+    if _model_s_tokenizer is None or _model_s_embedder is None:
+        print("Loading sparse embedder model and tokenizer...")
+        _model_s_tokenizer = AutoTokenizer.from_pretrained("naver/splade-cocondenser-ensembledistil")
+        _model_s_embedder = AutoModelForMaskedLM.from_pretrained("naver/splade-cocondenser-ensembledistil")
+    return _model_s_tokenizer, _model_s_embedder
+
+def compute_dense_vector(text: str) -> List[float] | np.ndarray:
+        """
+        Embeds text into dense vectors
+        """
+        embedder = get_dense_embedder()
+        embedded_text = embedder.encode(text)
+        return embedded_text
 
 def compute_sparse_vector(text: str) -> Tuple[List[int], List[float]]:
         """
         Computes a vector from logits and attention mask using ReLU, log, and max operations.
         """
+        tokenizer, embedder = get_sparse_embedder_and_tokenizer()
         tokens = tokenizer(text, return_tensors="pt")
-        output = sparse_vector_embedder(**tokens)
+        output = embedder(**tokens)
         logits, attention_mask = output.logits, tokens.attention_mask
         relu_log = torch.log(1 + torch.relu(logits))
         weighted_log = relu_log * attention_mask.unsqueeze(-1)
         max_val, _ = torch.max(weighted_log, dim=1)
         vec = max_val.squeeze()
 
-        # Convert dense vector to sparse: get non-zero indices and values
-        indices = torch.nonzero(vec).squeeze().tolist()
-        values = vec[indices].tolist()
+        # Safely get indices of non-zero values
+        indices = torch.nonzero(vec, as_tuple=True)[0].tolist()
+
+        if isinstance(indices, int):  # if single int, convert to list
+                indices = [indices]
+
+        # Safely get corresponding values
+        values = vec[indices].tolist() if indices else []
 
         return indices, values
-
-def compute_dense_vector(text: str) -> List[float] | np.ndarray:
-        """Embeds text into dense vectors"""
-        embedded_text = dense_vector_embedder.encode(text)
-        return embedded_text
