@@ -5,7 +5,6 @@ from services.model_manager import model_manager
 from modules.text_processing.rag_engine import hybrid_search, rrf
 from rich import print
 
-
 class ResponseHandler:
     """Handles different types of response generation."""
     
@@ -20,7 +19,6 @@ class ResponseHandler:
             
             execution_time = time.time() - start_time
             print(f"LLM inference took [green]{execution_time:.2f} seconds[/green]")
-            # print(model_manager.get_history())
             
             return {"response": response}
         except Exception as e:
@@ -48,7 +46,6 @@ class ResponseHandler:
             
             execution_time = time.time() - start_time
             print(f"RAG inference took [green]{execution_time:.2f} seconds[/green]")
-            # print(model_manager.get_history())
 
             return {"response": response}
         except Exception as e:
@@ -82,7 +79,6 @@ class ResponseHandler:
             
             execution_time = time.time() - start_time
             print(f"Dynamic response inference took [green]{execution_time:.2f} seconds[/green]")
-            # print(model_manager.get_history())
 
             return {
                 "task_definition": task_definition,

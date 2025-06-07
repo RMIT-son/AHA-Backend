@@ -8,7 +8,7 @@ load_dotenv()
 print("MONGO_DB_URL:", os.getenv("MONGO_DB_URL"))
 
 client = MongoClient(os.getenv("MONGO_DB_URL"))
-db = client["AHA-Capstone"]
+db = client["AHA"]
 conversation_collection = db["conversations"]
 
 # Test connection

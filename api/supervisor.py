@@ -4,7 +4,6 @@ from database.schemas import QueryInput
 from services.model_manager import model_manager
 from services.response_handlers import ResponseHandler
 
-
 @asynccontextmanager
 async def lifespan(app):
     """Application lifespan manager for model loading and cleanup."""
@@ -58,7 +57,7 @@ async def rag_response(input_data: QueryInput):
     return await ResponseHandler.handle_rag_response(input_data)
 
 
-@router.post("/dynamic-response")
+@router.post("/{conversation_id}/dynamic-response")
 async def dynamic_response(input_data: QueryInput):
     """
     Generate response using dynamic routing based on query classification.
