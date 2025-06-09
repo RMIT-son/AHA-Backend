@@ -15,8 +15,9 @@ class LLM(dspy.Module):
         LLMResponse.__doc__ = config["instruction"]
         self.response = dspy.Predict(LLMResponse, temperature=self.temperature, max_tokens=self.max_tokens)
     
-    def forward(self, prompt: str) -> str:
-        return self.response(prompt=prompt).response
+    async def forward(self, prompt: str) -> str:
+        response = await self.response.acall(prompt=prompt)
+        return response.response
 
 class RAGResponse(dspy.Signature):
     context: str = dspy.InputField()
@@ -33,8 +34,9 @@ class RAG(dspy.Module):
         RAGResponse.__doc__ = config["instruction"]
         self.response = dspy.Predict(RAGResponse, temperature=self.temperature, max_tokens=self.max_tokens)
     
-    def forward(self, context: str, prompt: str) -> str:
-        return self.response(context=context, prompt=prompt).response
+    async def forward(self, context: str, prompt: str) -> str:
+        response = await self.response.acall(context=context, prompt=prompt)
+        return response.response
 
 class Task(dspy.Signature):
     prompt: str = dspy.InputField()
@@ -50,5 +52,6 @@ class Classifier(dspy.Module):
         Task.__doc__ = config["instruction"]
         self.clasify = dspy.Predict(Task, temperature=self.temperature, max_tokens=self.max_tokens)
     
-    def forward(self, prompt: str) -> str:
-        return self.clasify(prompt=prompt).task
+    async def forward(self, prompt: str) -> str:
+        task = await self.clasify.acall(prompt=prompt)
+        return task.task

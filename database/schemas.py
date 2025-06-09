@@ -11,7 +11,7 @@ class Conversation(BaseModel):
     id: str  # This will receive the converted _id
     user_id: str
     created_at: datetime
-    messages: List = []
+    messages: List = [Message]
 
 class ConversationCreate(BaseModel):
     user_id: str

@@ -1,7 +1,6 @@
 
 import uuid
 from ranx import fuse, Run
-from itertools import chain
 from qdrant_client import models
 from database.qdrant_client import qdrant_client
 from qdrant_client.conversions import common_types as types

@@ -34,9 +34,9 @@ class ModelManager:
         
         print("All models loaded successfully!")
     
-    def warmup_models(self) -> None:
+    async def warmup_models(self) -> None:
         """Warm up all models with dummy inference."""
-        warmup_all_models(self.models)
+        await warmup_all_models(self.models)
     
     def get_model(self, model_name: str) -> Any:
         """Get a specific model by name."""

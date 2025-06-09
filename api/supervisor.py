@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from database.schemas import QueryInput
 from services.model_manager import model_manager
 from services.response_handlers import ResponseHandler
@@ -10,7 +10,7 @@ async def lifespan(app):
     try:
         # Load and warm up models on startup
         model_manager.load_models()
-        model_manager.warmup_models()
+        await model_manager.warmup_models()
         print("Application startup completed successfully!")
         
         yield
@@ -57,7 +57,7 @@ async def rag_response(input_data: QueryInput):
     return await ResponseHandler.handle_rag_response(input_data)
 
 
-@router.post("/{conversation_id}/dynamic-response")
+@router.post("/dynamic-response")
 async def dynamic_response(input_data: QueryInput):
     """
     Generate response using dynamic routing based on query classification.
@@ -70,7 +70,4 @@ async def dynamic_response(input_data: QueryInput):
     Returns:
         Dictionary containing task definition and generated response
     """
-    try:
-        return await ResponseHandler.handle_dynamic_response(input_data)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return await ResponseHandler.handle_dynamic_response(input_data)
