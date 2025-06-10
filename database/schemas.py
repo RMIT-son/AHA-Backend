@@ -17,7 +17,7 @@ class ConversationCreate(BaseModel):
     user_id: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class QueryInput(BaseModel):
     query: str = Field(..., max_length=512, description="User input")

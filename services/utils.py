@@ -59,7 +59,7 @@ def split_documents(documents, chunk_size=100, chunk_overlap=20):
 
 
 async def ensure_collection(collection_name):
-    if not qdrant_client.collection_exists(collection_name=collection_name):
+    if not await qdrant_client.collection_exists(collection_name=collection_name):
         print(f"[yellow]Creating collection: {collection_name}...[/yellow]")
         await qdrant_client.create_collection(
             collection_name=collection_name,

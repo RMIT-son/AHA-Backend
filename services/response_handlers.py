@@ -1,6 +1,6 @@
 import time
-from typing import Dict, Any, AsyncGenerator
 import dspy
+from typing import Dict, Any, AsyncGenerator
 from database.schemas import QueryInput, Message
 from services.model_manager import model_manager
 from modules.text_processing.rag_engine import hybrid_search, rrf
@@ -55,7 +55,7 @@ class ResponseHandler:
             return {"error": str(e)}
     
     @staticmethod
-    async def handle_dynamic_response(input_data: Message) -> Dict[str, Any]:
+    async def handle_dynamic_response(input_data: Message) -> AsyncGenerator[str, None]:
         """Handle dynamic response with classification-based routing."""
         start_time = time.time()
         
@@ -63,11 +63,20 @@ class ResponseHandler:
             # Classify the query to determine response type
             classifier = model_manager.get_model("classifier")
             task_definition = await classifier.forward(prompt=input_data.content)
-            
+            execution_time = time.time() - start_time
+            print(f"Classify inference took {execution_time:.2f} seconds")
+
             # Route based on classification
             if task_definition == "non-medical":
                 llm_responder = model_manager.get_model("llm_responder")
-                response = await llm_responder.forward(prompt=input_data.content)
+                stream_predict = dspy.streamify(
+                    llm_responder.response,
+                    stream_listeners=[dspy.streaming.StreamListener(signature_field_name="response")]
+                )
+                output_stream = stream_predict(prompt=input_data.content)
+                execution_time = time.time() - start_time
+                print(f"LLM inference took {execution_time:.2f} seconds")
+
             else:
                 # Use RAG for medical/specialized queries
                 points = await hybrid_search(
@@ -78,14 +87,17 @@ class ResponseHandler:
                 context = rrf(points=points, n_points=2)
                 
                 rag_responder = model_manager.get_model("rag_responder")
-                response = await rag_responder.forward(context=context, prompt=input_data.content)
+                stream_predict = dspy.streamify(
+                    rag_responder.response,
+                    stream_listeners=[dspy.streaming.StreamListener(signature_field_name="response")]
+                )
+                output_stream = stream_predict(context=context, prompt=input_data.content)
+                execution_time = time.time() - start_time
+                print(f"RAG inference took {execution_time:.2f} seconds")
             
             execution_time = time.time() - start_time
             print(f"Dynamic response inference took [green]{execution_time:.2f} seconds[/green]")
 
-            return {
-                "task_definition": task_definition,
-                "response": response
-            }
+            return output_stream
         except Exception as e:
             raise Exception(f"Dynamic response failed: {str(e)}")

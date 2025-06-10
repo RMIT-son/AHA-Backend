@@ -1,6 +1,6 @@
 import dspy
+import torch
 from typing import Literal
-
 class LLMResponse(dspy.Signature):
     prompt: str = dspy.InputField()
     response: str = dspy.OutputField()

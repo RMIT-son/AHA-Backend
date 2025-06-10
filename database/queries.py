@@ -1,8 +1,7 @@
 from .mongo_client import conversation_collection
 from bson import ObjectId
 from datetime import datetime
-from database.schemas import QueryInput
-from services.response_handlers import ResponseHandler
+from database.schemas import Message
 
 # Helper function to convert MongoDB document (_id) into a serializable dictionary
 def serialize_mongo_document(doc):
@@ -55,17 +54,14 @@ def get_conversation_by_id(convo_id: str):
 
 # Add a user or bot message to an existing conversation
 # If the sender is "user", also generate and store the bot response
-def add_message(convo_id: str, sender: str, content: str, response: str):
+def add_message(convo_id: str, message: Message, response: str):
     msg = {
-        "sender": sender,
-        "content": content,
+        "sender": message.sender,
+        "content": message.content,
         "timestamp": datetime.utcnow()
     }
 
-    if sender == "user":
-        # Prepare query input for response handler (LLM/RAG logic)
-        # query_input = QueryInput(query=content)
-        # response = await ResponseHandler.handle_dynamic_response(query_input)
+    if message.sender == "user":
 
         # Format bot reply
         bot_reply = {
@@ -85,6 +81,3 @@ def add_message(convo_id: str, sender: str, content: str, response: str):
             {"_id": ObjectId(convo_id)},
             {"$push": {"messages": msg}}
         )
-
-    # Return updated conversation
-    # return get_conversation_by_id(convo_id)

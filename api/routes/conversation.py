@@ -1,5 +1,5 @@
 import dspy
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
 from database.schemas import ConversationCreate, Message, Conversation
@@ -47,16 +47,14 @@ async def send(conversation_id: str, message: Message):
 @router.post("/{conversation_id}/stream", response_model=Conversation)
 async def stream_message(conversation_id: str, message: Message):
     try:
-        prompt = message.content
-        sender = message.sender
         async def read_output_stream():
-            output_stream = ResponseHandler.handle_llm_response(message.content)
+            output_stream = await ResponseHandler.handle_dynamic_response(message)
             async for chunk in output_stream:
                 if isinstance(chunk, dspy.streaming.StreamResponse):
                     yield f"data: {chunk.chunk}\n\n"
                 elif isinstance(chunk, dspy.Prediction):
                     yield f"data: [DONE]\n\n"
-                    add_message(convo_id=conversation_id, sender=sender, content=prompt, response=chunk.response)
+                    add_message(convo_id=conversation_id, message=message, response=chunk.response)
 
         return StreamingResponse(
             read_output_stream(),
