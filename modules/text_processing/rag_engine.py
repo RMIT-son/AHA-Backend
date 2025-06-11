@@ -4,7 +4,7 @@ from ranx import fuse, Run
 from qdrant_client import models
 from database.qdrant_client import qdrant_client
 from qdrant_client.conversions import common_types as types
-from modules.text_processing.embedders import (
+from modules import (
         compute_dense_vector, 
         compute_sparse_vector
     )

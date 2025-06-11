@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-def set_lm_configure(config: dict):
+def set_lm_configure(config: dict = None):
     lm = dspy.LM(
             model=config["model"],
             base_url=os.getenv("OPEN_ROUTER_URL"),

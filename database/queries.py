@@ -1,7 +1,7 @@
 from .mongo_client import conversation_collection
 from bson import ObjectId
 from datetime import datetime
-from database.schemas import Message
+from database import Message
 
 # Helper function to convert MongoDB document (_id) into a serializable dictionary
 def serialize_mongo_document(doc):

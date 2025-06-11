@@ -4,8 +4,8 @@ Model warm-up utilities to preload and test all ML components.
 
 import torch
 from typing import Dict, Any
-from database.schemas import DummyScoredPoint, DummyQueryResponse
-from modules.text_processing.rag_engine import (
+from database import DummyScoredPoint, DummyQueryResponse
+from modules import (
     rrf,
     hybrid_search
 )
@@ -31,7 +31,7 @@ async def warmup_llm_models(ml_models: Dict[str, Any]) -> None:
     
     _ = await ml_models["llm_responder"].forward(prompt="Hello")
     _ = await ml_models["rag_responder"].forward(context="Test context", prompt="Hello")
-    _ = await ml_models["classifier"].forward(prompt="Test classification")
+    _ = ml_models["classifier"].forward(prompt="Test classification")
     
     print("LLM models warmed up!")
 
@@ -87,7 +87,7 @@ def warmup_rrf_function() -> None:
     print("RRF function warmed up!")
 
 
-async def warmup_all_models(ml_models: Dict[str, Any]) -> None:
+async def warmup_all_models(ml_models: Dict[str, Any] = None) -> None:
     """Warm up all models and functions."""
     print("Starting model warm-up process...")
     

@@ -1,9 +1,27 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 import os
-from api.supervisor import router, lifespan
+from fastapi import FastAPI
 from api.routes import conversation
-from tests import dspy_test
+from contextlib import asynccontextmanager
+from services.model_manager import model_manager
+from fastapi.middleware.cors import CORSMiddleware
+
+@asynccontextmanager
+async def lifespan(app):
+    """Application lifespan manager for model loading and cleanup."""
+    try:
+        # Load and warm up models on startup
+        model_manager.load_models()
+        await model_manager.warmup_models()
+        print("Application startup completed successfully!")
+        yield
+        
+    except Exception as e:
+        print(f"Error during startup: {e}")
+        raise
+    finally:
+        # Clean up models on shutdown
+        model_manager.cleanup_models()
+        print("Application shutdown completed successfully!")
 
 app = FastAPI(lifespan=lifespan)
 
@@ -21,7 +39,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(router)
 app.include_router(conversation.router)
 
 @app.get("/")

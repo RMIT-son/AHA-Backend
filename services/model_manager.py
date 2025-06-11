@@ -1,8 +1,9 @@
+import dspy
 from typing import Dict, Any
 from database.redis_client import get_config
-from modules.llm_modules import RAG, LLM, Classifier
-from modules.orchestration.llm_gateway import set_lm_configure, dspy
-from modules.text_processing.embedders import (
+from modules import RAG, LLM, Classifier
+from modules.orchestration.llm_gateway import set_lm_configure
+from modules import (
     get_dense_embedder, 
     get_sparse_embedder_and_tokenizer
 )

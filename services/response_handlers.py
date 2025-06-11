@@ -1,16 +1,20 @@
 import time
 import dspy
+from database import Message
 from typing import Dict, Any, AsyncGenerator
-from database.schemas import QueryInput, Message
 from services.model_manager import model_manager
-from modules.text_processing.rag_engine import hybrid_search, rrf
+from modules import (
+    hybrid_search, 
+    rrf
+)
 from rich import print
+from services.translate import translate_text
 
 class ResponseHandler:
     """Handles different types of response generation."""
     
     @staticmethod
-    def handle_llm_response(prompt: str) -> AsyncGenerator[str, None]:
+    def handle_llm_response(prompt: str = None) -> AsyncGenerator[str, None]:
         """Handle LLM-only response without context, and return async generator."""
         start_time = time.time()
 
@@ -28,14 +32,14 @@ class ResponseHandler:
             raise RuntimeError(f"Stream inference error: {str(e)}")
 
     @staticmethod
-    async def handle_rag_response(input_data: QueryInput, collection_name: str = "dermatology") -> Dict[str, Any]:
+    async def handle_rag_response(input_data: Message = None, collection_name: str = "dermatology") -> Dict[str, Any]:
         """Handle RAG response with context retrieval."""
         start_time = time.time()
         
         try:
             # Retrieve context using hybrid search
             points = await hybrid_search(
-                query=input_data.query, 
+                query=input_data.content, 
                 collection_name=collection_name, 
                 limit=10
             )
@@ -45,7 +49,7 @@ class ResponseHandler:
             
             # Generate response using RAG
             rag_responder = model_manager.get_model("rag_responder")
-            response = await rag_responder.forward(context=context, prompt=input_data.query)
+            response = await rag_responder.forward(context=context, prompt=input_data.content)
             
             execution_time = time.time() - start_time
             print(f"RAG inference took [green]{execution_time:.2f} seconds[/green]")
@@ -55,14 +59,16 @@ class ResponseHandler:
             return {"error": str(e)}
     
     @staticmethod
-    async def handle_dynamic_response(input_data: Message) -> AsyncGenerator[str, None]:
+    async def handle_dynamic_response(input_data: Message = None) -> AsyncGenerator[str, None]:
         """Handle dynamic response with classification-based routing."""
         start_time = time.time()
         
         try:
+            prompt = await translate_text(text=input_data.content, dest="en")
             # Classify the query to determine response type
             classifier = model_manager.get_model("classifier")
-            task_definition = await classifier.forward(prompt=input_data.content)
+            task_definition = classifier.forward(prompt=prompt.text)
+            print(task_definition)
             execution_time = time.time() - start_time
             print(f"Classify inference took {execution_time:.2f} seconds")
 
@@ -74,26 +80,23 @@ class ResponseHandler:
                     stream_listeners=[dspy.streaming.StreamListener(signature_field_name="response")]
                 )
                 output_stream = stream_predict(prompt=input_data.content)
-                execution_time = time.time() - start_time
-                print(f"LLM inference took {execution_time:.2f} seconds")
 
             else:
                 # Use RAG for medical/specialized queries
                 points = await hybrid_search(
-                    query=input_data.content, 
+                    query=prompt.text, 
                     collection_name=task_definition, 
                     limit=10
                 )
+                # context = await translate_text(text=rrf(points=points, n_points=2), src=prompt.dest, dest=prompt.src)
                 context = rrf(points=points, n_points=2)
-                
+
                 rag_responder = model_manager.get_model("rag_responder")
                 stream_predict = dspy.streamify(
                     rag_responder.response,
                     stream_listeners=[dspy.streaming.StreamListener(signature_field_name="response")]
                 )
                 output_stream = stream_predict(context=context, prompt=input_data.content)
-                execution_time = time.time() - start_time
-                print(f"RAG inference took {execution_time:.2f} seconds")
             
             execution_time = time.time() - start_time
             print(f"Dynamic response inference took [green]{execution_time:.2f} seconds[/green]")

@@ -1,6 +1,6 @@
 import dspy
-import torch
-from typing import Literal
+from transformers import pipeline
+
 class LLMResponse(dspy.Signature):
     prompt: str = dspy.InputField()
     response: str = dspy.OutputField()
@@ -15,7 +15,7 @@ class LLM(dspy.Module):
         LLMResponse.__doc__ = config["instruction"]
         self.response = dspy.Predict(LLMResponse, temperature=self.temperature, max_tokens=self.max_tokens)
     
-    async def forward(self, prompt: str) -> str:
+    async def forward(self, prompt: str = None) -> str:
         response = await self.response.acall(prompt=prompt)
         return response.response
 
@@ -34,24 +34,17 @@ class RAG(dspy.Module):
         RAGResponse.__doc__ = config["instruction"]
         self.response = dspy.Predict(RAGResponse, temperature=self.temperature, max_tokens=self.max_tokens)
     
-    async def forward(self, context: str, prompt: str) -> str:
+    async def forward(self, context: str = None, prompt: str = None) -> str:
         response = await self.response.acall(context=context, prompt=prompt)
         return response.response
 
-class Task(dspy.Signature):
-    prompt: str = dspy.InputField()
-    task: Literal["non-medical", "dermatology"] = dspy.OutputField()
-
-class Classifier(dspy.Module):
-    """Model to classify task into medical or non medical"""
+class Classifier():
+    """Zero-shot model to classify task"""
     def __init__(self, config: dict):
         super().__init__()
-        self.model = config["model"]
-        self.temperature = config["temperature"]
-        self.max_tokens = config["max_tokens"]
-        Task.__doc__ = config["instruction"]
-        self.clasify = dspy.Predict(Task, temperature=self.temperature, max_tokens=self.max_tokens)
+        self.model = pipeline("zero-shot-classification", model=config["model"])
+        self.candidate_labels = config["candidate_labels"]
     
-    async def forward(self, prompt: str) -> str:
-        task = await self.clasify.acall(prompt=prompt)
-        return task.task
+    def forward(self, prompt: str = None) -> str:
+        result = self.model(prompt, candidate_labels=self.candidate_labels)
+        return result["labels"][0]

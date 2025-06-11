@@ -2,7 +2,11 @@ import dspy
 from fastapi import APIRouter, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
-from database.schemas import ConversationCreate, Message, Conversation
+from database.schemas import (
+    ConversationCreate, 
+    Message, 
+    Conversation
+)
 from database.queries import (
     create_conversation, get_all_conversations,
     get_conversation_by_id, add_message
