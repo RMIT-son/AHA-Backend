@@ -1,8 +1,8 @@
 import os
 from fastapi import FastAPI
-from api.routes import conversation
+from app.api.routes import conversation
 from contextlib import asynccontextmanager
-from services.model_manager import model_manager
+from app.services.model_manager import model_manager
 from fastapi.middleware.cors import CORSMiddleware
 
 @asynccontextmanager

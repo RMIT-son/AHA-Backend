@@ -8,7 +8,7 @@ from qdrant_client.http.exceptions import UnexpectedResponse
 from database.qdrant_client import qdrant_client
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader, TextLoader
-from modules import compute_dense_vector, compute_sparse_vector
+from app.modules import compute_dense_vector, compute_sparse_vector
 from rich.progress import track
 
 load_dotenv()

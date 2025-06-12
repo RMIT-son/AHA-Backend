@@ -1,13 +1,13 @@
 import dspy
 from typing import Dict, Any
 from database.redis_client import get_config
-from modules import RAG, LLM, Classifier
-from modules.orchestration.llm_gateway import set_lm_configure
-from modules import (
+from app.models import RAG, LLM, Classifier
+from app.modules.orchestration.llm_gateway import set_lm_configure
+from app.modules import (
     get_dense_embedder, 
     get_sparse_embedder_and_tokenizer
 )
-from services.model_warmup import warmup_all_models
+from .model_warmup import warmup_all_models
 
 
 class ModelManager:

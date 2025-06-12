@@ -2,13 +2,13 @@ import time
 import dspy
 from database import Message
 from typing import Dict, Any, AsyncGenerator
-from services.model_manager import model_manager
-from modules import (
+from .model_manager import model_manager
+from app.modules import (
     hybrid_search, 
     rrf
 )
 from rich import print
-from services.translate import translate_text
+from .translate import translate_text
 
 class ResponseHandler:
     """Handles different types of response generation."""

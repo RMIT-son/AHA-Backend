@@ -5,7 +5,7 @@ Model warm-up utilities to preload and test all ML components.
 import torch
 from typing import Dict, Any
 from database import DummyScoredPoint, DummyQueryResponse
-from modules import (
+from app.modules import (
     rrf,
     hybrid_search
 )

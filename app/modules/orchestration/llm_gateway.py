@@ -11,6 +11,5 @@ def set_lm_configure(config: dict = None):
             api_key=os.getenv("OPEN_ROUTER_API_KEY"),
             cache=False,
             track_usage=True,
-            streaming=True
         )
     return lm

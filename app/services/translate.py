@@ -1,6 +1,5 @@
 
 from typing import Coroutine, Any
-from database import Message
 from googletrans import Translator
 from googletrans.models import Translated
 

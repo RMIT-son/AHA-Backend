@@ -11,7 +11,7 @@ from database.queries import (
     create_conversation, get_all_conversations,
     get_conversation_by_id, add_message
 )
-from services.response_handlers import ResponseHandler
+from app.services import ResponseHandler
 
 # Create a router with a common prefix and tag for all conversation-related endpoints
 router = APIRouter(prefix="/api/conversations", tags=["Conversations"])
