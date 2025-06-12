@@ -6,10 +6,9 @@ from dotenv import load_dotenv
 from qdrant_client import models
 from qdrant_client.http.exceptions import UnexpectedResponse
 from database.qdrant_client import qdrant_client
-from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader, TextLoader
-from modules.text_processing.embedders import compute_dense_vector, compute_sparse_vector
+from app.modules import compute_dense_vector, compute_sparse_vector
 from rich.progress import track
 
 load_dotenv()
@@ -59,7 +58,7 @@ def split_documents(documents, chunk_size=100, chunk_overlap=20):
 
 
 async def ensure_collection(collection_name):
-    if not qdrant_client.collection_exists(collection_name=collection_name):
+    if not await qdrant_client.collection_exists(collection_name=collection_name):
         print(f"[yellow]Creating collection: {collection_name}...[/yellow]")
         await qdrant_client.create_collection(
             collection_name=collection_name,
