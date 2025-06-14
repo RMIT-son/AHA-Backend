@@ -4,6 +4,7 @@ requirements.txt
 *.pyc
 tests/
 huggingface_models/
+zero_shot_image_classification/
 # Python virtual environment
 
 # Byte-compiled / optimized / DLL files
