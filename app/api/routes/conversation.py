@@ -1,6 +1,6 @@
 import dspy
+import asyncio
 from fastapi import APIRouter, HTTPException
-from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
 from database.schemas import (
     ConversationCreate, 
@@ -36,18 +36,6 @@ def get_by_id(conversation_id: str):
         raise HTTPException(status_code=404, detail="Conversation not found")
     return convo
 
-# Endpoint to send a message in a conversation and get an updated response
-@router.post("/{conversation_id}/message", response_model=Conversation)
-async def send(conversation_id: str, message: Message): 
-    # Adds the user's message and triggers the bot's response if sender is 'user'
-    response = await ResponseHandler.handle_dynamic_response(message)
-    add_message(conversation_id, message.sender, message.content, response=response['response'])
-    convo = get_conversation_by_id(conversation_id)
-    if not convo:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    # Convert ObjectId to a JSON-serializable format
-    return jsonable_encoder(convo)
-
 @router.post("/{conversation_id}/stream", response_model=Conversation)
 async def stream_message(conversation_id: str, message: Message):
     try:
@@ -58,7 +46,7 @@ async def stream_message(conversation_id: str, message: Message):
                     yield f"data: {chunk.chunk}\n\n"
                 elif isinstance(chunk, dspy.Prediction):
                     yield f"data: [DONE]\n\n"
-                    add_message(convo_id=conversation_id, message=message, response=chunk.response)
+                    asyncio.create_task(add_message(convo_id=conversation_id, message=message, response=chunk.response))
 
         return StreamingResponse(
             read_output_stream(),

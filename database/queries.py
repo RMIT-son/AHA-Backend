@@ -54,7 +54,7 @@ def get_conversation_by_id(convo_id: str):
 
 # Add a user or bot message to an existing conversation
 # If the sender is "user", also generate and store the bot response
-def add_message(convo_id: str, message: Message, response: str):
+async def add_message(convo_id: str, message: Message, response: str):
     msg = {
         "sender": message.sender,
         "content": message.content,

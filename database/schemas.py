@@ -1,3 +1,4 @@
+import dspy
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Union
 from datetime import datetime
@@ -5,13 +6,14 @@ from datetime import datetime
 class Message(BaseModel):
     sender: str  # "user" or "assistant"
     content: str
+    image: Optional[str | dspy.Image] = None  # URL or base64 encoded image
     timestamp: Optional[datetime] = None
 
 class Conversation(BaseModel):
     id: str  # This will receive the converted _id
     user_id: str
     created_at: datetime
-    messages: List = [Message]
+    messages: List[Message] = Field(default_factory=list)
 
 class ConversationCreate(BaseModel):
     user_id: str

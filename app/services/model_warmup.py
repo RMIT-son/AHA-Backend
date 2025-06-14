@@ -10,7 +10,7 @@ from app.modules import (
     hybrid_search
 )
 
-def warmup_embedding_models(ml_models: Dict[str, Any], dummy_text: str = "This is a test query to warm up the models.") -> None:
+def warmup_embedding_models(ml_models: Dict[str, Any] = None, dummy_text: str = "This is a test query to warm up the models.") -> None:
     """Warm up dense and sparse embedding models."""
     print("Warming up embedding models...")
     
@@ -25,13 +25,13 @@ def warmup_embedding_models(ml_models: Dict[str, Any], dummy_text: str = "This i
     print("Embedding models warmed up!")
 
 
-async def warmup_llm_models(ml_models: Dict[str, Any]) -> None:
+async def warmup_llm_models(ml_models: Dict[str, Any] = None) -> None:
     """Warm up LLM models with dummy inference."""
     print("Warming up LLM models...")
     
     _ = await ml_models["llm_responder"].forward(prompt="Hello")
     _ = await ml_models["rag_responder"].forward(context="Test context", prompt="Hello")
-    _ = ml_models["classifier"].forward(prompt="Test classification")
+    _ = await ml_models["classifier"].classify_text(prompt="Test classification")
     
     print("LLM models warmed up!")
 

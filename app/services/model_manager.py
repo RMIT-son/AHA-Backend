@@ -1,14 +1,13 @@
 import dspy
 from typing import Dict, Any
-from database.redis_client import get_config
 from app.models import RAG, LLM, Classifier
+from database.redis_client import get_config
 from app.modules.orchestration.llm_gateway import set_lm_configure
 from app.modules import (
     get_dense_embedder, 
     get_sparse_embedder_and_tokenizer
 )
 from .model_warmup import warmup_all_models
-
 
 class ModelManager:
     """Manages the lifecycle of ML models."""

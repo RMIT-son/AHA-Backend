@@ -1,4 +1,3 @@
-
 import uuid
 from ranx import fuse, Run
 from qdrant_client import models
@@ -8,9 +7,6 @@ from .embedders import (
         compute_dense_vector, 
         compute_sparse_vector
     )
-from dotenv import load_dotenv
-
-load_dotenv()
 
 async def hybrid_search(query: str = None, collection_name: str = None, limit: int = None) -> list[types.QueryResponse]:
         """

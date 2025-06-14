@@ -1,7 +1,8 @@
 import time
 import dspy
-from database import Message
-from typing import Dict, Any, AsyncGenerator
+import asyncio
+from database import Message, Optional
+from typing import AsyncGenerator
 from .model_manager import model_manager
 from app.modules import (
     hybrid_search, 
@@ -14,25 +15,37 @@ class ResponseHandler:
     """Handles different types of response generation."""
     
     @staticmethod
-    def handle_llm_response(prompt: str = None) -> AsyncGenerator[str, None]:
+    def _create_stream_predict(model, signature_field_name="response"):
+        """Helper method to create streamified prediction."""
+        return dspy.streamify(
+            model.response,
+            stream_listeners=[dspy.streaming.StreamListener(signature_field_name=signature_field_name)]
+        )
+    
+    @staticmethod
+    def _log_execution_time(start_time: float, process_name: str):
+        """Helper method to log execution time."""
+        execution_time = time.time() - start_time
+        color = "[green]" if "RAG" in process_name or "Dynamic" in process_name else ""
+        end_color = "[/green]" if color else ""
+        print(f"{process_name} inference took {color}{execution_time:.2f} seconds{end_color}")
+    
+    @staticmethod
+    def handle_llm_response(input_data: Message = None, image: Optional[str | dspy.Image] = None) -> AsyncGenerator[str, None]:
         """Handle LLM-only response without context, and return async generator."""
         start_time = time.time()
 
         try:
             llm_responder = model_manager.get_model("llm_responder")
-            stream_predict = dspy.streamify(
-                llm_responder.response,
-                stream_listeners=[dspy.streaming.StreamListener(signature_field_name="response")]
-            )
-            output_stream = stream_predict(prompt=prompt)
-            execution_time = time.time() - start_time
-            print(f"LLM inference took {execution_time:.2f} seconds")
+            stream_predict = ResponseHandler._create_stream_predict(llm_responder)
+            output_stream = stream_predict(prompt=input_data.content, image=image)
+            ResponseHandler._log_execution_time(start_time, "LLM")
             return output_stream
         except Exception as e:
             raise RuntimeError(f"Stream inference error: {str(e)}")
 
     @staticmethod
-    async def handle_rag_response(input_data: Message = None, collection_name: str = "dermatology") -> Dict[str, Any]:
+    async def handle_rag_response(input_data: Message = None, collection_name: str = None, image: Optional[str] = None) -> AsyncGenerator[str, None]:
         """Handle RAG response with context retrieval."""
         start_time = time.time()
         
@@ -41,22 +54,22 @@ class ResponseHandler:
             points = await hybrid_search(
                 query=input_data.content, 
                 collection_name=collection_name, 
-                limit=10
+                limit=15
             )
             
             # Apply RRF to get the best context
             context = rrf(points=points, n_points=2)
-            
+
             # Generate response using RAG
             rag_responder = model_manager.get_model("rag_responder")
-            response = await rag_responder.forward(context=context, prompt=input_data.content)
+            stream_predict = ResponseHandler._create_stream_predict(rag_responder)
+            output_stream = stream_predict(context=context, prompt=input_data.content, image=image)
             
-            execution_time = time.time() - start_time
-            print(f"RAG inference took [green]{execution_time:.2f} seconds[/green]")
+            ResponseHandler._log_execution_time(start_time, "RAG")
 
-            return {"response": response}
+            return output_stream
         except Exception as e:
-            return {"error": str(e)}
+            raise Exception(f"RAG response failed: {str(e)}")
     
     @staticmethod
     async def handle_dynamic_response(input_data: Message = None) -> AsyncGenerator[str, None]:
@@ -64,43 +77,27 @@ class ResponseHandler:
         start_time = time.time()
         
         try:
-            prompt = await translate_text(text=input_data.content, dest="en")
+            # Translate user's prompt into English
+            translated_prompt = await translate_text(text=input_data.content, dest="en")
+
             # Classify the query to determine response type
             classifier = model_manager.get_model("classifier")
-            task_definition = classifier.forward(prompt=prompt.text)
-            print(task_definition)
-            execution_time = time.time() - start_time
-            print(f"Classify inference took {execution_time:.2f} seconds")
+            text_classification = asyncio.create_task(classifier.classify_text(prompt=translated_prompt.text))
+            image_classification = asyncio.create_task(classifier.classify_image(image=input_data.image))
+            text_result, image_result = await asyncio.gather(text_classification, image_classification)
+            print(f"text: {text_result}")
+            print(f"image: {image_result}")
+            ResponseHandler._log_execution_time(start_time, "Classify")
 
             # Route based on classification
-            if task_definition == "non-medical":
-                llm_responder = model_manager.get_model("llm_responder")
-                stream_predict = dspy.streamify(
-                    llm_responder.response,
-                    stream_listeners=[dspy.streaming.StreamListener(signature_field_name="response")]
-                )
-                output_stream = stream_predict(prompt=input_data.content)
-
+            if text_result != "not-medical-related" and image_result != "not-medical-related":
+                disease_classification = await classifier.classify_disease(image=input_data.image)
+                print(f"disease: {disease_classification}")
+                return await ResponseHandler.handle_rag_response(input_data=input_data, collection_name=text_result, image=disease_classification)
+            elif text_result != "not-medical-related" and image_result == "not-medical-related":
+                return await ResponseHandler.handle_rag_response(input_data=input_data, collection_name=text_result)
             else:
-                # Use RAG for medical/specialized queries
-                points = await hybrid_search(
-                    query=prompt.text, 
-                    collection_name=task_definition, 
-                    limit=10
-                )
-                # context = await translate_text(text=rrf(points=points, n_points=2), src=prompt.dest, dest=prompt.src)
-                context = rrf(points=points, n_points=2)
+                return ResponseHandler.handle_llm_response(input_data=input_data, image=input_data.image)
 
-                rag_responder = model_manager.get_model("rag_responder")
-                stream_predict = dspy.streamify(
-                    rag_responder.response,
-                    stream_listeners=[dspy.streaming.StreamListener(signature_field_name="response")]
-                )
-                output_stream = stream_predict(context=context, prompt=input_data.content)
-            
-            execution_time = time.time() - start_time
-            print(f"Dynamic response inference took [green]{execution_time:.2f} seconds[/green]")
-
-            return output_stream
         except Exception as e:
             raise Exception(f"Dynamic response failed: {str(e)}")
