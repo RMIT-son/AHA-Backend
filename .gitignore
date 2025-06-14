@@ -1,6 +1,5 @@
 venv/
 .env
-requirements.txt
 *.pyc
 tests/
 huggingface_models/
