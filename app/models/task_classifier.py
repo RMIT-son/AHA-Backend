@@ -11,10 +11,11 @@ class Classifier:
     """Classifier for text, general images, and disease-related images using zero-shot models."""
 
     def __init__(self, config: dict = None):
-        self.candidate_labels = config["candidate_labels"]
+        self.config = config
+        self.candidate_labels = self.config["candidate_labels"]
         self.zero_shot_text_classification = pipeline(
             "zero-shot-classification", 
-            model=config["model"]
+            model=self.config["model"]
         )
         self.zero_shot_image_classification = ZeroShotImageClassification()
         self.zero_shot_disease_classification = pipeline(
@@ -54,7 +55,9 @@ class Classifier:
                 self.zero_shot_disease_classification,
                 img_data
             )
-            return result[0]["label"]
+            note = self.config["disease_response_note"]
+            label = result[0]["label"]
+            return f"Response from the disease image classifier: The provided image may show signs of {label}, {note}"
 
         except Exception as e:
             print(f"[Disease Classification] Error: {e}")

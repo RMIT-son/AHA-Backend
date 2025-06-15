@@ -10,4 +10,3 @@ zero_shot_image_classification/
 __pycache__/
 *.py[cod]
 *$py.class
-evaluation_20_qa.csv

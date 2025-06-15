@@ -3,7 +3,7 @@ from typing import Optional
 
 class RAGResponse(dspy.Signature):
     context: str = dspy.InputField(description="Context retrieved from the knowledge base")
-    image: Optional[str] = dspy.InputField(optional=True, description="What disease is this image look like?")
+    image: Optional[str | dspy.Image] = dspy.InputField(optional=True, description="What disease is this image look like?")
     prompt: str = dspy.InputField()
     response: str = dspy.OutputField()
 
