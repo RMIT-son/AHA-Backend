@@ -15,7 +15,7 @@ def get_dense_embedder():
     global _model_d
     if _model_d is None:
         print("Loading dense embedder model...")
-        _model_d = SentenceTransformer("intfloat/multilingual-e5-small")
+        _model_d = SentenceTransformer("huggingface_models/multilingual-e5-small")
     return _model_d
 
 def get_sparse_embedder_and_tokenizer():
@@ -25,11 +25,11 @@ def get_sparse_embedder_and_tokenizer():
     global _model_s_tokenizer, _model_s_embedder
     if _model_s_tokenizer is None or _model_s_embedder is None:
         print("Loading sparse embedder model and tokenizer...")
-        _model_s_tokenizer = AutoTokenizer.from_pretrained("naver/splade-cocondenser-ensembledistil")
-        _model_s_embedder = AutoModelForMaskedLM.from_pretrained("naver/splade-cocondenser-ensembledistil")
+        _model_s_tokenizer = AutoTokenizer.from_pretrained("huggingface_models/splade-cocondenser")
+        _model_s_embedder = AutoModelForMaskedLM.from_pretrained("huggingface_models/splade-cocondenser")
     return _model_s_tokenizer, _model_s_embedder
 
-def compute_dense_vector(text: str) -> List[float] | np.ndarray:
+def compute_dense_vector(text: str = None) -> List[float] | np.ndarray:
         """
         Embeds text into dense vectors
         """
@@ -37,7 +37,7 @@ def compute_dense_vector(text: str) -> List[float] | np.ndarray:
         embedded_text = embedder.encode(text)
         return embedded_text
 
-def compute_sparse_vector(text: str) -> Tuple[List[int], List[float]]:
+def compute_sparse_vector(text: str = None) -> Tuple[List[int], List[float]]:
         """
         Computes a vector from logits and attention mask using ReLU, log, and max operations.
         """

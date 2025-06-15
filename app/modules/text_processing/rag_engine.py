@@ -1,17 +1,12 @@
-
 import uuid
 from ranx import fuse, Run
-from itertools import chain
 from qdrant_client import models
 from database.qdrant_client import qdrant_client
 from qdrant_client.conversions import common_types as types
-from modules.text_processing.embedders import (
+from .embedders import (
         compute_dense_vector, 
         compute_sparse_vector
     )
-from dotenv import load_dotenv
-
-load_dotenv()
 
 async def hybrid_search(query: str = None, collection_name: str = None, limit: int = None) -> list[types.QueryResponse]:
         """
