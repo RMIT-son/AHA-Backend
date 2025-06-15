@@ -3,6 +3,7 @@ from bson import ObjectId
 from database.schemas import QueryInput
 from datetime import datetime
 from services.response_handlers import ResponseHandler
+from database.qdrant_client import add_message_vector
 
 # Helper function to convert MongoDB document (_id) into a serializable dictionary
 def serialize_mongo_document(doc):
@@ -85,6 +86,22 @@ async def add_message(convo_id: str, sender: str, content: str):
             {"_id": ObjectId(convo_id)},
             {"$push": {"messages": msg}}
         )
+    
+    # Add message to Qdrant for history tracking
+    # Lookup conversation
+    convo = conversation_collection.find_one({"_id": ObjectId(convo_id)})
+    if not convo:
+        return None
+    user_id = convo["user_id"]
+
+    # Add message to Qdrant
+    add_message_vector(
+        user_id=user_id,
+        conversation_id=convo_id,
+        user_message=content,
+        bot_response=bot_response["response"],
+        timestamp=msg["timestamp"].isoformat()
+    )
 
     # Return updated conversation
     return get_conversation_by_id(convo_id)
