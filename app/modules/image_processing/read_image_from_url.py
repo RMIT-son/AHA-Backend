@@ -1,6 +1,6 @@
 from dspy import Image
 
-async def read_image_from_url(url: str = None) -> Image:
+def read_image_from_url(url: str = None) -> Image:
     """Alternative method: Load image directly from URL with DSPy"""
     try:
         # DSPy Image can sometimes load directly from URL
