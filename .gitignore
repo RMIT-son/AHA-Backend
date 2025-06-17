@@ -6,4 +6,5 @@ __pycache__/
 *.py[cod]
 *$py.class
 evaluation_20_qa.csv
-.env.env
+.env
+
