@@ -2,8 +2,13 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.env
+*.log
+*.sqlite3
+*.db
+*.DS_Store
 venv/
+.venv/
+ENV/
+logs/
 .git/
-.vscode/
-.idea/
+path/to/venv/
