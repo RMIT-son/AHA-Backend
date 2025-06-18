@@ -1,2 +1,1 @@
-from .read_image_from_local import *
-from .read_image_from_url import *
+from .convert_to_dspy_image import *

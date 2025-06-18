@@ -1,12 +1,11 @@
-import dspy
+from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Union
-from datetime import datetime
 
-class Message(BaseModel):
-    sender: str  # "user" or "assistant"
-    content: str
-    image: Optional[str | dspy.Image] = None  # URL or base64 encoded image
+class Message(BaseModel):   
+    sender: str
+    content: Optional[str] = None
+    image: Optional[Union[str, bytes]] = None
     timestamp: Optional[datetime] = None
 
 class Conversation(BaseModel):

@@ -11,7 +11,7 @@ from database.queries import (
     create_conversation, get_all_conversations,
     get_conversation_by_id, add_message
 )
-from app.services import ResponseHandler
+from app.services import ResponseManager
 
 # Create a router with a common prefix and tag for all conversation-related endpoints
 router = APIRouter(prefix="/api/conversations", tags=["Conversations"])
@@ -40,7 +40,7 @@ def get_by_id(conversation_id: str):
 async def stream_message(conversation_id: str, message: Message):
     try:
         async def read_output_stream():
-            output_stream = await ResponseHandler.handle_dynamic_response(message)
+            output_stream = await ResponseManager.handle_dynamic_response(message)
             async for chunk in output_stream:
                 if isinstance(chunk, dspy.streaming.StreamResponse):
                     yield f"data: {chunk.chunk}\n\n"

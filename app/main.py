@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from app.api.routes import conversation
 from contextlib import asynccontextmanager
-from app.services.model_manager import model_manager
+from app.services.manage_models.model_manager import model_manager
 from fastapi.middleware.cors import CORSMiddleware
 
 @asynccontextmanager
