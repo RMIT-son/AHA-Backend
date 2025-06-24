@@ -1,112 +1,65 @@
-import dspy
 import time
 import asyncio
 from rich import print
 from database import Message
 from typing import AsyncGenerator
-from .text_handler import TextHandler
-from .image_handler import ImageHandler
-from .response_manager import ResponseManager
+from ..manage_responses import TextHandler, ImageHandler
 from app.modules.image_processing import convert_to_dspy_image
 
+class TextImageHandler(TextHandler, ImageHandler):
+    """Handler specialized for text+image inputs."""
 
-class TextImageHandler(ResponseManager):
-    """Handler specialized for inputs containing both text and images."""
-    
-    def __init__(self):
-        """Initialize with text and image handlers."""
-        self.text_handler = TextHandler()
-        self.image_handler = ImageHandler()
-    
-    async def handle_text_image_response(self, input_data: Message = None, classifier: dspy.Module = None) -> AsyncGenerator[str, None]:
-        """Handle response for inputs containing both text and images."""
+    @classmethod
+    async def handle_text_image_response(cls, input_data: Message = None) -> AsyncGenerator[str, None]:
+        """Handle text+image response with parallel classification and routing."""
         start_time = time.time()
-        
         try:
+            # Run text and image classification in parallel
+            text_task = cls._classify_text(input_data)
+            image_task = cls._classify_image(input_data)
             
-            # Validate that both text and image are present
-            has_text = bool(input_data.content and input_data.content.strip())
-            has_image = input_data.image is not None
+            text_result, image_result = await asyncio.gather(text_task, image_task)
             
-            if not (has_text and has_image):
-                raise Exception("TextImageHandler requires both text and image inputs")
+            print(f"Text classification: {text_result}, Image classification: {image_result}")
+            cls._log_execution_time(start_time, "Text+Image Classification")
             
-            # Classify both text and image in parallel using the respective handlers
-            text_result, image_result = await self._classify_both_inputs(input_data=input_data, classifier=classifier)
-
-            print(f"Text: {text_result}, Image: {image_result}")
-            self._log_execution_time(start_time, "Text-Image Classification")
-            
-            # Route based on combined classification results
-            return await self._route_combined_response(input_data=input_data, text_result=text_result, image_result=image_result, classifier=classifier)
-
-        except Exception as e:
-            print(f"Text-image response handling failed: {str(e)}")
-            raise Exception(f"Text-image response failed: {str(e)}")
-    
-    async def _classify_both_inputs(self, input_data: Message = None, classifier: dspy.Module = None) -> tuple[str, str]:
-        """Classify both text and image inputs using their respective handlers."""
-        try:
-            
-            # Use the individual handlers' classification methods in parallel
-            text_result, image_result = await asyncio.gather(
-                self.text_handler._classify_text(input_data=input_data, classifier=classifier),
-                self.image_handler._classify_image(input_data=input_data, classifier=classifier)
+            # Route based on classification
+            return await cls._route_text_image_response(
+                input_data=input_data, 
+                text_result=text_result, 
+                image_result=image_result
             )
-            
-            return text_result, image_result
-            
+
         except Exception as e:
-            print(f"Combined classification failed: {str(e)}")
-            raise Exception(f"Combined classification failed: {str(e)}")
+            print(f"Text+Image response handling failed: {str(e)}")
+            raise Exception(f"Text+Image response failed: {str(e)}")
 
-    async def _route_combined_response(self, input_data: Message = None, text_result: str = None, image_result: str = None, classifier: dspy.Module = None) -> AsyncGenerator[str, None]:
-        """Route response based on combined text and image classification results."""
+
+    @classmethod
+    async def _route_text_image_response(cls, input_data: Message = None, text_result: str = None, image_result: str = None) -> AsyncGenerator[str, None]:
+        """Route text+image response based on classification."""
         try:
-            is_text_medical = text_result != "not-medical-related"
-            is_image_medical = image_result != "not-medical-related"
+            text_is_medical = text_result != "not-medical-related"
+            image_is_medical = image_result != "not-medical-related"
             
-            # Priority routing logic
-            if is_text_medical and is_image_medical:
-                # Both are medical - prioritize text classification but include image context
-                return await self._handle_dual_medical_response(input_data=input_data, text_result=text_result, image_result=image_result, classifier=classifier)
-
-            elif is_text_medical and not is_image_medical:
-                # Only text is medical - use text-based RAG
-                input_data.image = convert_to_dspy_image(image_data=input_data.image)
-                return await self.text_handler._route_text_response(input_data=input_data, text_result=text_result)
-
-            elif is_image_medical and not is_text_medical:
-                # Only image is medical - use image-based RAG
-                return await self.image_handler._route_image_response(input_data=input_data, image_result=image_result, classifier=classifier)
-
+            if text_is_medical or image_is_medical:
+                # At least one is medical - use RAG
+                # Prioritize text classification for collection name
+                collection_name = text_result if text_is_medical else image_result
+                
+                if image_is_medical:
+                    # Process medical image
+                    input_data.image = image_result
+                else:
+                    # Convert non-medical image
+                    input_data.image = convert_to_dspy_image(image_data=input_data.image)
+                
+                return await cls.handle_rag_response(input_data=input_data, collection_name=collection_name)
             else:
-                # Neither is medical - use general LLM with both inputs
+                # Both non-medical - use general LLM
                 input_data.image = convert_to_dspy_image(image_data=input_data.image)
-                return self.handle_llm_response(input_data=input_data)
+                return cls.handle_llm_response(input_data=input_data)
                 
         except Exception as e:
-            print(f"Combined response routing failed: {str(e)}")
-            raise Exception(f"Combined response routing failed: {str(e)}")
-    
-    async def _handle_dual_medical_response(self, input_data: Message = None, text_result: str = None, image_result: str = None, classifier: dspy.Module = None) -> AsyncGenerator[str, None]:
-        """Handle case where both text and image are medical-related."""
-        try:
-            print(f"Text: {text_result}, Image: {image_result}")
-            
-            # If both classifications point to the same medical domain, use that
-            if text_result == image_result:
-                print(f"Same medical domain detected: {text_result}")
-                # Enhance image with disease classification for better context
-                input_data.image = await classifier.classify_disease(image=input_data.image)
-
-            else:
-                # Different medical domains - prioritize text but enhance with image context
-                print(f"Different medical domains - prioritizing text: {text_result}")
-
-            
-            return await self.handle_rag_response(input_data=input_data, collection_name=text_result)
-            
-        except Exception as e:
-            print(f"Dual medical response handling failed: {str(e)}")
-            raise Exception(f"Dual medical response failed: {str(e)}")
+            print(f"Text+Image response routing failed: {str(e)}")
+            raise Exception(f"Text+Image response routing failed: {str(e)}")
