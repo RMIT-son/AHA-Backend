@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Union
 
 class Message(BaseModel):   
@@ -32,3 +32,21 @@ class DummyScoredPoint(BaseModel):
 class DummyQueryResponse(BaseModel):
     """Simulates a Qdrant QueryResponse for testing purposes."""
     points: List[DummyScoredPoint]
+    
+# Request model (for register)
+class UserCreate(BaseModel):
+    fullName: str
+    email: EmailStr
+    password: str
+    phone: str
+
+# Used when logging in
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+    
+class UserResponse(BaseModel):
+    id: str
+    fullName: str
+    email: EmailStr
+    phone: str

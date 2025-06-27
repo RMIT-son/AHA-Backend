@@ -1,36 +1,44 @@
-# Core Libraries
+# ---- Core Libraries (Light) ----
 openai
 python-dotenv
 requests
 pydantic
-# FastAPI & Web Server
+
+# ---- Web Server ----
 fastapi[standard]
 uvicorn
-# LLM & LangChain Ecosystem
+
+# ---- Database & Redis ----
+pymongo
+redis
+boto3
+
+# ---- Translation & Parsing ----
+googletrans
+pypdf
+unstructured
+unstructured[pdf]
+
+# ---- LangChain & LLM Ecosystem (Moderate) ----
 langchain
 langchain_community
 langchain_text_splitters
 langchain_huggingface
 langchain-openai
 dspy
-# Document Handling
-pypdf
-unstructured
-unstructured[pdf]
-googletrans
-# Embedding & Vector Stores
+
+# ---- Embeddings & Vector Stores (Heavy) ----
 sentence_transformers
 fastembed
 qdrant_client
-# Evaluation & Datasets
+
+# ---- RAG Evaluation ----
 ragas
 datasets
 ranx
-# Databases
-pymongo
-redis
-boto3
-# Image ZSIC
-# Note: The following packages are for zero-shot image classification
+
+# ---- GIT Packages (Heavy and Slow) ----
 git+https://github.com/openai/CLIP.git
 git+https://github.com/PrithivirajDamodaran/ZSIC.git
+
+bcrypt
