@@ -2,6 +2,7 @@ from .mongo_client import conversation_collection
 from bson import ObjectId
 from datetime import datetime
 from database import Message
+from database.qdrant_client import add_message_vector
 
 # Helper function to convert MongoDB document (_id) into a serializable dictionary
 def serialize_mongo_document(doc):
@@ -54,7 +55,7 @@ def get_conversation_by_id(convo_id: str):
 
 # Add a user or bot message to an existing conversation
 # If the sender is "user", also generate and store the bot response
-async def add_message(convo_id: str, message: Message, response: str):
+async def add_message(convo_id: str, message: Message, response: str, category: str):
     msg = {
         "sender": message.sender,
         "content": message.content,
@@ -81,3 +82,24 @@ async def add_message(convo_id: str, message: Message, response: str):
             {"_id": ObjectId(convo_id)},
             {"$push": {"messages": msg}}
         )
+
+    # Add message to Qdrant for history tracking
+    # Lookup conversation
+    convo = conversation_collection.find_one({"_id": ObjectId(convo_id)})
+    if not convo:
+        return None
+    user_id = convo["user_id"]
+
+    if category == "dermatology":
+        qdrant_collection_name = "dermatological-chat"
+    else:
+        qdrant_collection_name = "not-medical-chat"
+
+    await add_message_vector(
+        user_id=user_id,
+        conversation_id=convo_id,
+        user_message=message.content,
+        bot_response=response,
+        timestamp=msg["timestamp"].isoformat(),
+        collection_name=qdrant_collection_name
+    )
