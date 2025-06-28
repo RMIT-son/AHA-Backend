@@ -5,7 +5,7 @@ from PIL import Image
 from io import BytesIO
 from typing import Optional
 from transformers import pipeline
-from ZSIC import ZeroShotImageClassification
+from .ZSIC import ZeroShotImageClassification
 
 class Classifier:
     """Classifier for text, general images, and disease-related images using zero-shot models."""
@@ -15,12 +15,12 @@ class Classifier:
         self.candidate_labels = self.config["candidate_labels"]
         self.zero_shot_text_classification = pipeline(
             "zero-shot-classification", 
-            model=self.config["model"]
+            model="MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli-ling-wanli"
         )
         self.zero_shot_image_classification = ZeroShotImageClassification()
         self.zero_shot_disease_classification = pipeline(
             "image-classification",
-            model="huggingface_models/cancer-detector"
+            model="krzonkalla/Detector_de_Cancer_de_Pele"
         )
 
     async def classify_text(self, prompt: str = None) -> str:
@@ -28,7 +28,7 @@ class Classifier:
         result = await asyncio.to_thread(
             self.zero_shot_text_classification,
             prompt,
-            candidate_labels=self.candidate_labels
+            candidate_labels=self.candidate_labels #[not-medical-related, medical-related]
         )
         return result["labels"][0]
 

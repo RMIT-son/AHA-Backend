@@ -33,4 +33,3 @@ boto3
 # Image ZSIC
 # Note: The following packages are for zero-shot image classification
 git+https://github.com/openai/CLIP.git
-git+https://github.com/PrithivirajDamodaran/ZSIC.git

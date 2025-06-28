@@ -53,7 +53,7 @@ class ResponseManager:
             points = await hybrid_search(
                 query=compose_text_image_prompt, 
                 collection_name=collection_name, 
-                limit=8
+                limit=4
             )
             
             # Apply RRF to get the best context
