@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Union
 
 class Message(BaseModel):   
@@ -26,9 +26,27 @@ class QueryInput(BaseModel):
 class DummyScoredPoint(BaseModel):
     """Simulates a Qdrant ScoredPoint for testing purposes."""
     score: float
-    payload: Dict[str, Union[str, float, int, bool, None]]  # Adjust types based on your real payload structure
-    id: Union[str, int]  # Qdrant IDs can be string or int
+    payload: Dict[str, Union[str, float, int, bool, None]]
+    id: Union[str, int]
 
 class DummyQueryResponse(BaseModel):
     """Simulates a Qdrant QueryResponse for testing purposes."""
     points: List[DummyScoredPoint]
+    
+# Request model (for register)
+class UserCreate(BaseModel):
+    fullName: str
+    email: EmailStr
+    password: str
+    phone: str
+
+# Used when logging in
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+    
+class UserResponse(BaseModel):
+    id: str
+    fullName: str
+    email: EmailStr
+    phone: str

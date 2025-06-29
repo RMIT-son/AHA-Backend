@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api.routes import conversation
+from app.api.routes import conversation, auth
 from contextlib import asynccontextmanager
 from app.services.manage_models.model_manager import model_manager
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,3 +42,4 @@ app.add_middleware(
 )
 
 app.include_router(conversation.router)
+app.include_router(auth.router)
