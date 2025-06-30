@@ -88,13 +88,16 @@ async def add_message(convo_id: str, message: Message, response: str, category: 
     convo = conversation_collection.find_one({"_id": ObjectId(convo_id)})
     if not convo:
         return None
+    # Extract user_id from the conversation document
     user_id = convo["user_id"]
 
+    # Determine which Qdrant collection to use based on message category
     if category == "dermatology":
         qdrant_collection_name = "dermatological-chat"
     else:
         qdrant_collection_name = "not-medical-chat"
 
+    # Store the message and bot response vector in Qdrant for retrieval/history
     await add_message_vector(
         user_id=user_id,
         conversation_id=convo_id,
