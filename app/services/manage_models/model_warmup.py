@@ -29,9 +29,9 @@ async def warmup_llm_models(ml_models: Dict[str, Any] = None) -> None:
     """Warm up LLM models with dummy inference."""
     print("Warming up LLM models...")
     
-    _ = await ml_models["llm_responder"].forward(prompt="Hello")
-    _ = await ml_models["rag_responder"].forward(context="Test context", prompt="Hello")
-    _ = await ml_models["classifier"].classify_text(prompt="Test classification")
+    # _ = await ml_models["llm_responder"].forward(prompt="Hello")
+    # _ = await ml_models["rag_responder"].forward(context="Test context", prompt="Hello")
+    # _ = await ml_models["classifier"].classify_text(prompt="Test classification")
     
     print("LLM models warmed up!")
 

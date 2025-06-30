@@ -32,8 +32,9 @@ def create_conversation(user_id: str):
     return convo
 
 # Retrieve all conversation documents and serialize ObjectId to id
-def get_all_conversations():
-    conversations = list(conversation_collection.find())
+def get_all_conversations(user_id: str):
+    # Only get conversations belonging to this user
+    conversations = list(conversation_collection.find({"user_id": user_id}))
     
     for convo in conversations:
         if "_id" in convo:
@@ -55,34 +56,24 @@ def get_conversation_by_id(convo_id: str):
         return None
 
 # Add a user or bot message to an existing conversation
-# If the sender is "user", also generate and store the bot response
 async def add_message(convo_id: str, message: Message, response: str):
     msg = {
-        "sender": message.sender,
+        "sender": "user",
         "content": message.content,
+        "timestamp": message.timestamp
+    }
+
+    bot_reply = {
+        "sender": "assistant",
+        "content": response,
         "timestamp": datetime.utcnow()
     }
 
-    if message.sender == "user":
-
-        # Format bot reply
-        bot_reply = {
-            "sender": "assistant",
-            "content": response,
-            "timestamp": datetime.utcnow()
-        }
-
-        # Push both user message and bot reply into the conversation
-        conversation_collection.update_one(
-            {"_id": ObjectId(convo_id)},
-            {"$push": {"messages": {"$each": [msg, bot_reply]}}}
-        )
-    else:
-        # Just store the message (likely system or assistant message)
-        conversation_collection.update_one(
-            {"_id": ObjectId(convo_id)},
-            {"$push": {"messages": msg}}
-        )
+    # Push both user message and bot reply into the conversation
+    conversation_collection.update_one(
+        {"_id": ObjectId(convo_id)},
+        {"$push": {"messages": {"$each": [msg, bot_reply]}}}
+    )
 
 def serialize_user(user):
     if not user:
