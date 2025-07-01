@@ -4,6 +4,7 @@ from rich import print
 from database import Message
 from typing import Any, AsyncGenerator, Awaitable
 from ..manage_models.model_manager import model_manager
+from app.modules.image_processing import convert_to_dspy_image
 from app.modules.text_processing import (
     hybrid_search,
     rrf,
@@ -75,8 +76,18 @@ class ResponseManager:
         """Summarize conversation between user and chat bot"""
         try:
             summarizer = model_manager.get_model("summarizer")
-            summarized_context = await summarizer.forward(image=input_data.image, prompt=input_data.content)
+
+            image_data = input_data.image
+            if isinstance(image_data, (bytes, bytearray)):
+                image = convert_to_dspy_image(image_data=image_data)
+            elif isinstance(image_data, str) and image_data.lower() not in ["", "string", "none"]:
+                image = convert_to_dspy_image(image_data=image_data)
+            else:
+                image = None
+
+            summarized_context = await summarizer.forward(image=image, prompt=input_data.content)
             return summarized_context
+
         except Exception as e:
             raise Exception(f"Summarized failed: {str(e)}")
         

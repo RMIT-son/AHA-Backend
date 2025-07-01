@@ -17,8 +17,9 @@ router = APIRouter(prefix="/api/conversations", tags=["Conversations"])
 
 # Endpoint to create a new conversation for a given user
 @router.post("/create/{user_id}", response_model=Conversation)
-def create_conversation_by_user_id(user_id: str):
-    result = create_conversation(user_id)
+async def create_conversation_by_user_id(user_id: str, message: Message):
+    title = await ResponseManager.summarize(message)
+    result = create_conversation(user_id=user_id, title=title)
     return result
 
 # Endpoint to retrieve all conversations stored in the database
@@ -34,11 +35,6 @@ def get_conversation(conversation_id: str):
     if not convo:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return convo
-
-@router.post("/summarize")
-async def summarize_conversation(message: Message):
-    result = await ResponseManager.summarize(message)
-    return result
 
 @router.post("/{conversation_id}/stream", response_model=Conversation)
 async def stream_message(conversation_id: str, message: Message):

@@ -18,8 +18,9 @@ def serialize_mongo_document(doc):
     return doc
 
 # Create a new conversation document in the database
-def create_conversation(user_id: str):
+def create_conversation(user_id: str, title: str):
     convo = {
+        "title": title,
         "user_id": user_id,
         "created_at": datetime.utcnow(),
         "messages": []
