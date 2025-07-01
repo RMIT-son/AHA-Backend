@@ -73,7 +73,7 @@ class ResponseManager:
 
     @classmethod
     async def summarize(cls, input_data: Message = None) -> str:
-        """Summarize conversation between user and chat bot"""
+        """Summarize conversation based on user prompt"""
         try:
             summarizer = model_manager.get_model("summarizer")
 
