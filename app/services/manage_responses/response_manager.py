@@ -71,6 +71,16 @@ class ResponseManager:
             raise Exception(f"RAG response failed: {str(e)}")
 
     @classmethod
+    async def summarize(cls, input_data: Message = None) -> str:
+        """Summarize conversation between user and chat bot"""
+        try:
+            summarizer = model_manager.get_model("summarizer")
+            summarized_context = await summarizer.forward(image=input_data.image, prompt=input_data.content)
+            return summarized_context
+        except Exception as e:
+            raise Exception(f"Summarized failed: {str(e)}")
+        
+    @classmethod
     async def get_classifier(cls) -> dspy.Module:
         """Get classifier model."""
         try:

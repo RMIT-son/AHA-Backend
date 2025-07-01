@@ -5,7 +5,7 @@ from PIL import Image
 from io import BytesIO
 from typing import Optional
 from transformers import pipeline
-from .ZSIC import ZeroShotImageClassification
+from .zero_shot_image_classifier import ZeroShotImageClassification
 
 class Classifier:
     """Classifier for text, general images, and disease-related images using zero-shot models."""
