@@ -26,6 +26,7 @@ class ModelManager:
         # Initialize LLM models
         self.models["llm_responder"] = LLM(config=get_config("llm"))
         self.models["rag_responder"] = RAG(config=get_config("rag"))
+        self.models["summarizer"] = LLM(config=get_config("summarizer"))
         self.models["classifier"] = Classifier(config=get_config("task_classifier"))
         
         # Load embedding models

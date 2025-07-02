@@ -13,6 +13,10 @@ from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader, T
 
 load_dotenv()
 
+def create_signature_with_doc(base_cls, docstring: str):
+    """Dynamically create a new class inheriting from base_cls with a custom docstring."""
+    return type(base_cls.__name__, (base_cls,), {"__doc__": docstring})
+
 def load_documents(folder_path):
     if not os.path.exists(folder_path):
         print(f"[red]ERROR: Folder '{folder_path}' does not exist![/red]")

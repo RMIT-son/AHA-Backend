@@ -1,7 +1,8 @@
-from .mongo_client import conversation_collection
+import bcrypt
 from bson import ObjectId
 from datetime import datetime
-from database import Message
+from database.schemas import UserCreate, UserLogin, Message
+from .mongo_client import conversation_collection, user_collection
 from database.qdrant_client import add_message_vector
 
 # Helper function to convert MongoDB document (_id) into a serializable dictionary
@@ -17,8 +18,9 @@ def serialize_mongo_document(doc):
     return doc
 
 # Create a new conversation document in the database
-def create_conversation(user_id: str):
+def create_conversation(user_id: str, title: str):
     convo = {
+        "title": title,
         "user_id": user_id,
         "created_at": datetime.utcnow(),
         "messages": []
@@ -31,8 +33,9 @@ def create_conversation(user_id: str):
     return convo
 
 # Retrieve all conversation documents and serialize ObjectId to id
-def get_all_conversations():
-    conversations = list(conversation_collection.find())
+def get_all_conversations(user_id: str):
+    # Only get conversations belonging to this user
+    conversations = list(conversation_collection.find({"user_id": user_id}))
     
     for convo in conversations:
         if "_id" in convo:
@@ -54,35 +57,25 @@ def get_conversation_by_id(convo_id: str):
         return None
 
 # Add a user or bot message to an existing conversation
-# If the sender is "user", also generate and store the bot response
 async def add_message(convo_id: str, message: Message, response: str, category: str):
     msg = {
-        "sender": message.sender,
+        "sender": "user",
         "content": message.content,
-        "timestamp": datetime.utcnow()
+        "timestamp": message.timestamp
     }
 
-    if message.sender == "user":
-
-        # Format bot reply
-        bot_reply = {
-            "sender": "assistant",
-            "content": response,
-            "timestamp": datetime.utcnow()
-        }
-
-        # Push both user message and bot reply into the conversation
-        conversation_collection.update_one(
-            {"_id": ObjectId(convo_id)},
-            {"$push": {"messages": {"$each": [msg, bot_reply]}}}
-        )
-    else:
-        # Just store the message (likely system or assistant message)
-        conversation_collection.update_one(
-            {"_id": ObjectId(convo_id)},
-            {"$push": {"messages": msg}}
-        )
-
+    bot_reply = {
+        "sender": "assistant",
+        "content": response,
+        "timestamp": datetime.utcnow()
+    }
+    
+    # Push both user message and bot reply into the conversation
+    conversation_collection.update_one(
+        {"_id": ObjectId(convo_id)},
+        {"$push": {"messages": {"$each": [msg, bot_reply]}}}
+    )
+    
     # Add message to Qdrant for history tracking
     # Lookup conversation
     convo = conversation_collection.find_one({"_id": ObjectId(convo_id)})
@@ -106,3 +99,43 @@ async def add_message(convo_id: str, message: Message, response: str, category: 
         timestamp=msg["timestamp"].isoformat(),
         collection_name=qdrant_collection_name
     )
+
+def serialize_user(user):
+    if not user:
+        return None
+    return {
+        "id": str(user.get("_id", "")),  # ensures string
+        "fullName": user.get("fullName", ""),
+        "email": user.get("email", ""),
+        "phone": user.get("phone", "")
+    }
+
+
+def register_user(user_data: UserCreate):
+    print("Registering use function:", user_data)
+    existing_user = user_collection.find_one({"email": user_data.email})
+    if existing_user:
+        raise ValueError("User already exists")
+
+    hashed_pw = bcrypt.hashpw(user_data.password.encode("utf-8"), bcrypt.gensalt())
+
+    new_user = {
+        "fullName": user_data.fullName,
+        "email": user_data.email,
+        "password": hashed_pw.decode("utf-8"),  # Store as string
+        "phone": user_data.phone
+    }
+    print("Create new user", new_user)
+    
+
+    result = user_collection.insert_one(new_user)
+    print("Inserted user with ID:", result.inserted_id)
+    new_user["_id"] = result.inserted_id
+    return serialize_user(new_user)
+
+
+def login_user(credentials: UserLogin):
+    user = user_collection.find_one({"email": credentials.email})
+    if user and bcrypt.checkpw(credentials.password.encode("utf-8"), user["password"].encode("utf-8")):
+        return serialize_user(user)
+    return None

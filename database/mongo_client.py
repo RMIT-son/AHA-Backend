@@ -7,6 +7,7 @@ load_dotenv()
 client = MongoClient(os.getenv("MONGO_DB_URL"))
 db = client["AHA"]
 conversation_collection = db["conversations"]
+user_collection = db["users"]
 
 # Test connection
 try:

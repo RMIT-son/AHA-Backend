@@ -4,6 +4,7 @@ from rich import print
 from database import Message
 from typing import Any, AsyncGenerator, Awaitable
 from ..manage_models.model_manager import model_manager
+from app.modules.image_processing import convert_to_dspy_image
 from app.modules.text_processing import (
     hybrid_search,
     rrf,
@@ -70,6 +71,26 @@ class ResponseManager:
         except Exception as e:
             raise Exception(f"RAG response failed: {str(e)}")
 
+    @classmethod
+    async def summarize(cls, input_data: Message = None) -> str:
+        """Summarize conversation based on user prompt"""
+        try:
+            summarizer = model_manager.get_model("summarizer")
+
+            image_data = input_data.image
+            if isinstance(image_data, (bytes, bytearray)):
+                image = convert_to_dspy_image(image_data=image_data)
+            elif isinstance(image_data, str) and image_data.lower() not in ["", "string", "none"]:
+                image = convert_to_dspy_image(image_data=image_data)
+            else:
+                image = None
+
+            summarized_context = await summarizer.forward(image=image, prompt=input_data.content)
+            return summarized_context
+
+        except Exception as e:
+            raise Exception(f"Summarized failed: {str(e)}")
+        
     @classmethod
     async def get_classifier(cls) -> dspy.Module:
         """Get classifier model."""
