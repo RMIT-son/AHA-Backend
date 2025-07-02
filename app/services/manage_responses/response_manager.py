@@ -31,7 +31,7 @@ class ResponseManager:
                 limit=20
             )
             previous_conversations = rrf(points=points, n_points=top_k, payload=["user_message", "bot_response"])
-            print(previous_conversations)
+
             return previous_conversations
         except Exception as e:
             print(f"[Error] Failed to get previous responses: {e}")

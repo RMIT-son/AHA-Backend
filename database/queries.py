@@ -1,9 +1,11 @@
 import bcrypt
+from typing import Dict
 from bson import ObjectId
 from datetime import datetime
+from fastapi import HTTPException
 from database.schemas import UserCreate, UserLogin, Message
 from .mongo_client import conversation_collection, user_collection
-from database.qdrant_client import add_message_vector
+from database.qdrant_client import add_message_vector, delete_conversation_vectors
 
 # Helper function to convert MongoDB document (_id) into a serializable dictionary
 def serialize_mongo_document(doc):
@@ -92,6 +94,27 @@ async def add_message(convo_id: str, message: Message, response: str):
         bot_response=response,
         timestamp=msg["timestamp"].isoformat(),
     )
+
+async def delete_conversation_by_id(conversation_id: str, user_id: str) -> Dict:
+    if not ObjectId.is_valid(conversation_id):
+        raise HTTPException(status_code=400, detail="Invalid conversation ID")
+
+    # Step 1: Delete from MongoDB
+    result = conversation_collection.delete_one({
+        "_id": ObjectId(conversation_id),
+        "user_id": user_id
+    })
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found or already deleted")
+
+    # Step 2: Delete from Qdrant
+    try:
+        await delete_conversation_vectors(collection_name=user_id, conversation_id=conversation_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Deleted in MongoDB but failed in Qdrant: {str(e)}")
+
+    return {"message": "Conversation deleted from MongoDB and Qdrant", "conversation_id": conversation_id}
 
 def serialize_user(user):
     if not user:

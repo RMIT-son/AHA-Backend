@@ -145,3 +145,34 @@ async def add_message_vector(collection_name: str, conversation_id: str, user_me
         )
     except Exception as e:
         print(f"[Qdrant] Error adding message to vector DB: {e}")
+
+async def delete_conversation_vectors(collection_name: str, conversation_id: str):
+    """Delete all vectors in Qdrant for a given conversation ID."""
+    try:
+        # Get ALL points (no filter to avoid index requirement)
+        scrolled_points, _ = await qdrant_client.scroll(
+            collection_name=collection_name,
+            limit=10000,
+            with_payload=True,
+            with_vectors=False
+        )
+        
+        # Filter in Python to find matching conversation_id
+        matching_point_ids = [
+            point.id for point in scrolled_points 
+            if point.payload and point.payload.get("conversation_id") == conversation_id
+        ]
+        
+        # Delete by IDs if any found
+        if matching_point_ids:
+            await qdrant_client.delete(
+                collection_name=collection_name,
+                points_selector=matching_point_ids,
+                wait=True
+            )
+            
+        print(f"Deleted {len(matching_point_ids)} points for conversation {conversation_id}")
+        
+    except Exception as e:
+        print(f"[Qdrant] Error deleting conversation vectors: {e}")
+        raise

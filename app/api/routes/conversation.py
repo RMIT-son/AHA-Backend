@@ -8,7 +8,7 @@ from database.schemas import (
 )
 from database.queries import (
     create_conversation, get_all_conversations,
-    get_conversation_by_id, add_message
+    get_conversation_by_id, add_message, delete_conversation_by_id
 )
 from app.services.manage_responses import TextHandler, ImageHandler, TextImageHandler, ResponseManager
 
@@ -35,6 +35,10 @@ def get_conversation(conversation_id: str):
     if not convo:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return convo
+
+@router.delete("/{conversation_id}/user/{user_id}")
+async def delete_conversation(conversation_id: str, user_id: str):
+    return await delete_conversation_by_id(conversation_id, user_id)
 
 @router.post("/{conversation_id}/{user_id}/stream", response_model=Conversation)
 async def stream_message(conversation_id: str, user_id: str, message: Message):
