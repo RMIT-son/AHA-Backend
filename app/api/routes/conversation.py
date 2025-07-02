@@ -36,21 +36,21 @@ def get_conversation(conversation_id: str):
         raise HTTPException(status_code=404, detail="Conversation not found")
     return convo
 
-@router.post("/{conversation_id}/stream", response_model=Conversation)
-async def stream_message(conversation_id: str, message: Message):
+@router.post("/{conversation_id}/{user_id}/stream", response_model=Conversation)
+async def stream_message(conversation_id: str, user_id: str, message: Message):
     async def generate_response_stream():
         try:
             
             # Determine which handler to use based on message content
             if message.content and not message.image:
                 handler = TextHandler()
-                output_stream = await handler.handle_text_response(input_data=message)
+                output_stream = await handler.handle_text_response(input_data=message, user_id=user_id)
             elif message.image and not message.content:
                 handler = ImageHandler()
                 output_stream = await handler.handle_image_response(input_data=message)
             elif message.content and message.image:
                 handler = TextImageHandler()
-                output_stream = await handler.handle_text_image_response(input_data=message)
+                output_stream = await handler.handle_text_image_response(input_data=message, user_id=user_id)
             else:
                 raise ValueError("Empty message content and image")
             # Stream the output

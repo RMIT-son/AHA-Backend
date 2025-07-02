@@ -57,7 +57,7 @@ def get_conversation_by_id(convo_id: str):
         return None
 
 # Add a user or bot message to an existing conversation
-async def add_message(convo_id: str, message: Message, response: str, category: str):
+async def add_message(convo_id: str, message: Message, response: str):
     msg = {
         "sender": "user",
         "content": message.content,
@@ -84,20 +84,13 @@ async def add_message(convo_id: str, message: Message, response: str, category: 
     # Extract user_id from the conversation document
     user_id = convo["user_id"]
 
-    # Determine which Qdrant collection to use based on message category
-    if category == "dermatology":
-        qdrant_collection_name = "dermatological-chat"
-    else:
-        qdrant_collection_name = "not-medical-chat"
-
     # Store the message and bot response vector in Qdrant for retrieval/history
     await add_message_vector(
-        user_id=user_id,
+        collection_name=user_id,
         conversation_id=convo_id,
         user_message=message.content,
         bot_response=response,
         timestamp=msg["timestamp"].isoformat(),
-        collection_name=qdrant_collection_name
     )
 
 def serialize_user(user):
