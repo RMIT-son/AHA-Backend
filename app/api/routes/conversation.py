@@ -53,7 +53,6 @@ async def stream_message(conversation_id: str, message: Message):
                 output_stream = await handler.handle_text_image_response(input_data=message)
             else:
                 raise ValueError("Empty message content and image")
-
             # Stream the output
             async for chunk in output_stream:
                 if isinstance(chunk, dspy.streaming.StreamResponse):

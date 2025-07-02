@@ -1,9 +1,9 @@
 import bcrypt
 from bson import ObjectId
-from database import Message
 from datetime import datetime
-from database.schemas import UserCreate, UserLogin
+from database.schemas import UserCreate, UserLogin, Message
 from .mongo_client import conversation_collection, user_collection
+from database.qdrant_client import add_message_vector
 
 # Helper function to convert MongoDB document (_id) into a serializable dictionary
 def serialize_mongo_document(doc):
@@ -57,7 +57,7 @@ def get_conversation_by_id(convo_id: str):
         return None
 
 # Add a user or bot message to an existing conversation
-async def add_message(convo_id: str, message: Message, response: str):
+async def add_message(convo_id: str, message: Message, response: str, category: str):
     msg = {
         "sender": "user",
         "content": message.content,
@@ -69,11 +69,35 @@ async def add_message(convo_id: str, message: Message, response: str):
         "content": response,
         "timestamp": datetime.utcnow()
     }
-
+    
     # Push both user message and bot reply into the conversation
     conversation_collection.update_one(
         {"_id": ObjectId(convo_id)},
         {"$push": {"messages": {"$each": [msg, bot_reply]}}}
+    )
+    
+    # Add message to Qdrant for history tracking
+    # Lookup conversation
+    convo = conversation_collection.find_one({"_id": ObjectId(convo_id)})
+    if not convo:
+        return None
+    # Extract user_id from the conversation document
+    user_id = convo["user_id"]
+
+    # Determine which Qdrant collection to use based on message category
+    if category == "dermatology":
+        qdrant_collection_name = "dermatological-chat"
+    else:
+        qdrant_collection_name = "not-medical-chat"
+
+    # Store the message and bot response vector in Qdrant for retrieval/history
+    await add_message_vector(
+        user_id=user_id,
+        conversation_id=convo_id,
+        user_message=message.content,
+        bot_response=response,
+        timestamp=msg["timestamp"].isoformat(),
+        collection_name=qdrant_collection_name
     )
 
 def serialize_user(user):
