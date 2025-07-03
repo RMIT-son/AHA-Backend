@@ -31,7 +31,10 @@ class UserResponse(BaseModel):
     fullName: str
     email: EmailStr
     phone: str
-    
+
+class UpdateConversationRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200, description="New title for the conversation")
+
 class DummyScoredPoint(BaseModel):
     """Simulates a Qdrant ScoredPoint for testing purposes."""
     score: float

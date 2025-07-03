@@ -95,6 +95,25 @@ async def add_message(convo_id: str, message: Message, response: str):
         timestamp=msg["timestamp"].isoformat(),
     )
 
+"""Update the title of a conversation"""
+def update_conversation_title(convo_id: str, new_title: str):
+    try:
+        result = conversation_collection.update_one(
+            {"_id": ObjectId(convo_id)},
+            {"$set": {"title": new_title}}
+        )
+        
+        if result.modified_count == 0:
+            return None
+            
+        # Return the updated conversation
+        updated_convo = conversation_collection.find_one({"_id": ObjectId(convo_id)})
+        return serialize_mongo_document(updated_convo)
+        
+    except Exception as e:
+        print(f"Error updating conversation title: {e}")
+        return None
+
 async def delete_conversation_by_id(conversation_id: str, user_id: str) -> Dict:
     if not ObjectId.is_valid(conversation_id):
         raise HTTPException(status_code=400, detail="Invalid conversation ID")
