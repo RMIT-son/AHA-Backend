@@ -4,6 +4,7 @@ from database import Message
 from typing import AsyncGenerator
 from .response_manager import ResponseManager
 from app.modules.image_processing import convert_to_dspy_image
+from database.gcs_client import upload_file_to_gcs
 
 class ImageHandler(ResponseManager):
     """Handler specialized for image-only inputs."""
@@ -32,6 +33,10 @@ class ImageHandler(ResponseManager):
         try:
             # Get classifier and classify image
             classifier = await cls.get_classifier()
+            # If image is raw bytes, upload to GCS and replace with URL
+            if isinstance(input_data.image, bytes):
+                gcs_url = await upload_file_to_gcs(file_bytes=input_data.image)
+                input_data.image = gcs_url
             image_result = await classifier.classify_image(image=input_data.image)
             if image_result != "not-medical-related":
                 image_result = await classifier.classify_disease(image=input_data.image)

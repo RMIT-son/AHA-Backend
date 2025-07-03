@@ -1,0 +1,45 @@
+import os
+import uuid
+import filetype
+from google.cloud import storage
+
+# Set your bucket name and credentials
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "database/service-account-key.json"
+BUCKET_NAME = "aha-db"
+
+def upload_file_to_gcs(file_bytes: bytes) -> str:
+    """Uploads file to appropriate folder in GCS and returns its GCS URL."""
+
+    # Infer content type and extension
+    kind = filetype.guess(file_bytes)
+    if kind is None:
+        raise ValueError("Unsupported or unknown file type.")
+
+    content_type = kind.mime
+    extension = f".{kind.extension}"  
+
+    # Determine folder based on MIME type
+    if content_type.startswith("image/"):
+        folder = "image"
+    elif content_type.startswith("audio/"):
+        folder = "audio"
+    elif content_type.startswith("application/"):
+        folder = "docs"
+    else:
+        raise ValueError("Unsupported file type.")
+
+    # Create unique filename
+    unique_filename = f"{folder}/{uuid.uuid4().hex}{extension}"
+
+    # Upload to GCS
+    client = storage.Client()
+    bucket = client.bucket(BUCKET_NAME)
+    blob = bucket.blob(unique_filename)
+    blob.upload_from_string(file_bytes, content_type=content_type)
+
+    # Return GCS URL (accessible if user has permission)
+    return f"https://storage.cloud.google.com/{BUCKET_NAME}/{unique_filename}?authuser=0"
+
+
+
+
