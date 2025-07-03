@@ -1,9 +1,11 @@
 import bcrypt
+from typing import Dict
 from bson import ObjectId
 from datetime import datetime
+from fastapi import HTTPException
 from database.schemas import UserCreate, UserLogin, Message
 from .mongo_client import conversation_collection, user_collection
-from database.qdrant_client import add_message_vector
+from database.qdrant_client import add_message_vector, delete_conversation_vectors
 
 # Helper function to convert MongoDB document (_id) into a serializable dictionary
 def serialize_mongo_document(doc):
@@ -57,7 +59,7 @@ def get_conversation_by_id(convo_id: str):
         return None
 
 # Add a user or bot message to an existing conversation
-async def add_message(convo_id: str, message: Message, response: str, category: str):
+async def add_message(convo_id: str, message: Message, response: str):
     msg = {
         "sender": "user",
         "content": message.content,
@@ -84,21 +86,54 @@ async def add_message(convo_id: str, message: Message, response: str, category: 
     # Extract user_id from the conversation document
     user_id = convo["user_id"]
 
-    # Determine which Qdrant collection to use based on message category
-    if category == "dermatology":
-        qdrant_collection_name = "dermatological-chat"
-    else:
-        qdrant_collection_name = "not-medical-chat"
-
     # Store the message and bot response vector in Qdrant for retrieval/history
     await add_message_vector(
-        user_id=user_id,
+        collection_name=user_id,
         conversation_id=convo_id,
         user_message=message.content,
         bot_response=response,
         timestamp=msg["timestamp"].isoformat(),
-        collection_name=qdrant_collection_name
     )
+
+"""Update the title of a conversation"""
+def update_conversation_title(convo_id: str, new_title: str):
+    try:
+        result = conversation_collection.update_one(
+            {"_id": ObjectId(convo_id)},
+            {"$set": {"title": new_title}}
+        )
+        
+        if result.modified_count == 0:
+            return None
+            
+        # Return the updated conversation
+        updated_convo = conversation_collection.find_one({"_id": ObjectId(convo_id)})
+        return serialize_mongo_document(updated_convo)
+        
+    except Exception as e:
+        print(f"Error updating conversation title: {e}")
+        return None
+
+async def delete_conversation_by_id(conversation_id: str, user_id: str) -> Dict:
+    if not ObjectId.is_valid(conversation_id):
+        raise HTTPException(status_code=400, detail="Invalid conversation ID")
+
+    # Step 1: Delete from MongoDB
+    result = conversation_collection.delete_one({
+        "_id": ObjectId(conversation_id),
+        "user_id": user_id
+    })
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found or already deleted")
+
+    # Step 2: Delete from Qdrant
+    try:
+        await delete_conversation_vectors(collection_name=user_id, conversation_id=conversation_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Deleted in MongoDB but failed in Qdrant: {str(e)}")
+
+    return {"message": "Conversation deleted from MongoDB and Qdrant", "conversation_id": conversation_id}
 
 def serialize_user(user):
     if not user:

@@ -10,7 +10,7 @@ class TextImageHandler(TextHandler, ImageHandler):
     """Handler specialized for text+image inputs."""
 
     @classmethod
-    async def handle_text_image_response(cls, input_data: Message = None) -> AsyncGenerator[str, None]:
+    async def handle_text_image_response(cls, input_data: Message = None, user_id: str = None) -> AsyncGenerator[str, None]:
         """Handle text+image response with parallel classification and routing."""
         start_time = time.time()
         try:
@@ -27,7 +27,8 @@ class TextImageHandler(TextHandler, ImageHandler):
             return await cls._route_text_image_response(
                 input_data=input_data, 
                 text_result=text_result, 
-                image_result=image_result
+                image_result=image_result,
+                user_id=user_id
             )
 
         except Exception as e:
@@ -36,7 +37,7 @@ class TextImageHandler(TextHandler, ImageHandler):
 
 
     @classmethod
-    async def _route_text_image_response(cls, input_data: Message = None, text_result: str = None, image_result: str = None) -> AsyncGenerator[str, None]:
+    async def _route_text_image_response(cls, input_data: Message = None, text_result: str = None, image_result: str = None, user_id: str = None) -> AsyncGenerator[str, None]:
         """Route text+image response based on classification."""
         try:
             text_is_medical = text_result != "not-medical-related"
@@ -54,11 +55,11 @@ class TextImageHandler(TextHandler, ImageHandler):
                     # Convert non-medical image
                     input_data.image = convert_to_dspy_image(image_data=input_data.image)
                 
-                return await cls.handle_rag_response(input_data=input_data, collection_name=collection_name)
+                return await cls.handle_rag_response(input_data=input_data, collection_name=collection_name, user_id=user_id)
             else:
                 # Both non-medical - use general LLM
                 input_data.image = convert_to_dspy_image(image_data=input_data.image)
-                return cls.handle_llm_response(input_data=input_data)
+                return await cls.handle_llm_response(input_data=input_data, user_id=user_id)
                 
         except Exception as e:
             print(f"Text+Image response routing failed: {str(e)}")

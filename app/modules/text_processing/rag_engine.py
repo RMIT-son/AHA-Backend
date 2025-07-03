@@ -50,7 +50,7 @@ async def hybrid_search(query: str = None, collection_name: str = None, limit: i
         except Exception as e:
             return {"error": str(e)}
 
-def rrf(points: list[types.QueryResponse] = None, n_points: int = None) -> str:
+def rrf(points: list[types.QueryResponse] = None, n_points: int = None, payload: list[str] = None) -> str:
         """
         Perform Reciprocal Rank Fusion (RRF) on dense and sparse Qdrant search results
         and return a combined context string from the top-ranked documents.
@@ -114,9 +114,12 @@ def rrf(points: list[types.QueryResponse] = None, n_points: int = None) -> str:
             # Retrieve the full document objects using saved mapping
             top_docs = [all_results[doc_id] for doc_id in top_ids]
 
-            # Concatenate the text fields of the top documents into a single context string
-            context = "\n".join([doc.payload.get('text', '') for doc in top_docs])
-            
-            return context
+            # Build the context string using selected payload fields
+            context_chunks = []
+            for doc in top_docs:
+                payload_content = [f"{key}: {doc.payload.get(key, '')}" for key in payload]
+                context_chunks.append("\n".join(payload_content))
+
+            return "\n\n---\n\n".join(context_chunks)
         except Exception as e:
-            return {"error": str(e)}
+            return f"[RRF Error] {e}"

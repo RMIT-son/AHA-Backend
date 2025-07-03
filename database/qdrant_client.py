@@ -1,8 +1,9 @@
 import os
 from uuid import uuid4
 from dotenv import load_dotenv
+from typing import List
 from qdrant_client import AsyncQdrantClient, models
-from qdrant_client.models import PointStruct, Filter, FieldCondition, MatchValue
+from qdrant_client.models import PointStruct, ScoredPoint
 
 # Load environment variables from .env file
 load_dotenv()
@@ -33,27 +34,25 @@ def embed(text: str) -> tuple[list[float], list[int], list[float]]:
         print(f"[Embedding Error] Failed to embed text: {text}. Error: {e}")
         return [], [], []
 
-async def get_all_messages(user_id: str, collection_name: str) -> list:
+async def get_all_messages(collection_name: str) -> List[ScoredPoint]:
     """
     Retrieve all messages for a user from the Qdrant collection.
+
     Args:
-        user_id: The user's unique identifier
         collection_name: Name of the Qdrant collection
+
     Returns:
-        List of message points for the user
+        List of ScoredPoint objects for the user
     """
     try:
-        result = await qdrant_client.scroll(
+        scrolled_points, _ = await qdrant_client.scroll(
             collection_name=collection_name,
-            scroll_filter=Filter(
-                must=[FieldCondition(key="user_id", match=MatchValue(value=user_id))]
-            ),
             limit=100,
             with_payload=True
         )
-        return result.points
+        return scrolled_points
     except Exception as e:
-        print(f"[Qdrant] Error fetching messages for user {user_id}: {e}")
+        print(f"[Qdrant] Error fetching messages for user {collection_name}: {e}")
         return []
 
 async def remove_oldest_message(existing_messages: list, collection_name: str):
@@ -79,49 +78,41 @@ async def ensure_collection_exists(collection_name: str):
     """
     Ensure the Qdrant collection exists, create it if not.
     Args:
-        collection_name: Name of the Qdrant collection
+        collection_name: Name of the Qdrant collection based on user ID
     """
     try:
-        await qdrant_client.get_collection(collection_name)
-    except Exception:
-        try:
-            # Create collection with dense and sparse vector configs
+        if not await qdrant_client.collection_exists(collection_name=collection_name):
             await qdrant_client.create_collection(
                 collection_name=collection_name,
                 vectors_config={
-                    "text-embedding": models.VectorParams(
-                        size=384,
-                        distance=models.Distance.COSINE
-                    )
+                    "text-embedding": models.VectorParams(size=384, distance=models.Distance.COSINE)
                 },
                 sparse_vectors_config={
                     "sparse-embedding": models.SparseVectorParams(
                         index=models.SparseIndexParams(on_disk=False)
                     )
-                }
+                },
             )
-            print(f"[Qdrant] Created collection: {collection_name}")
-        except Exception as e:
-            print(f"[Qdrant] Failed to create collection: {e}")
+    except Exception as e:
+        print(f"Error: {e}")
 
-async def add_message_vector(user_id: str, conversation_id: str, user_message: str, bot_response: str, timestamp: str, collection_name: str):
+async def add_message_vector(collection_name: str, conversation_id: str, user_message: str, bot_response: str, timestamp: str) -> None:
     """
     Embed the user message and insert it into Qdrant.
     If more than 50 messages exist for the user, remove the oldest one first.
     Args:
-        user_id: The user's unique identifier
+        collection_name: Name of the Qdrant collection
         conversation_id: The conversation's unique identifier
         user_message: The user's message text
         bot_response: The assistant's reply
         timestamp: Timestamp of the message
-        collection_name: Name of the Qdrant collection
     """
     try:
         # Ensure the collection exists
         await ensure_collection_exists(collection_name)
 
         # Retrieve existing messages for the user
-        existing_messages = await get_all_messages(user_id, collection_name)
+        existing_messages = await get_all_messages(collection_name)
 
         # Maintain rolling window of 50 messages per user
         if len(existing_messages) >= 50:
@@ -144,9 +135,9 @@ async def add_message_vector(user_id: str, conversation_id: str, user_message: s
                         )
                     },
                     payload={
-                        "user_id": user_id,
                         "conversation_id": conversation_id,
                         "timestamp": timestamp,
+                        "user_message": user_message,
                         "bot_response": bot_response
                     }
                 )
@@ -154,3 +145,34 @@ async def add_message_vector(user_id: str, conversation_id: str, user_message: s
         )
     except Exception as e:
         print(f"[Qdrant] Error adding message to vector DB: {e}")
+
+async def delete_conversation_vectors(collection_name: str, conversation_id: str):
+    """Delete all vectors in Qdrant for a given conversation ID."""
+    try:
+        # Get ALL points (no filter to avoid index requirement)
+        scrolled_points, _ = await qdrant_client.scroll(
+            collection_name=collection_name,
+            limit=10000,
+            with_payload=True,
+            with_vectors=False
+        )
+        
+        # Filter in Python to find matching conversation_id
+        matching_point_ids = [
+            point.id for point in scrolled_points 
+            if point.payload and point.payload.get("conversation_id") == conversation_id
+        ]
+        
+        # Delete by IDs if any found
+        if matching_point_ids:
+            await qdrant_client.delete(
+                collection_name=collection_name,
+                points_selector=matching_point_ids,
+                wait=True
+            )
+            
+        print(f"Deleted {len(matching_point_ids)} points for conversation {conversation_id}")
+        
+    except Exception as e:
+        print(f"[Qdrant] Error deleting conversation vectors: {e}")
+        raise

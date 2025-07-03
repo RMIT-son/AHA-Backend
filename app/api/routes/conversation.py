@@ -4,11 +4,13 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from database.schemas import (
     Message, 
-    Conversation
+    Conversation,
+    UpdateConversationRequest
 )
 from database.queries import (
     create_conversation, get_all_conversations,
-    get_conversation_by_id, add_message
+    get_conversation_by_id, add_message, delete_conversation_by_id, 
+    update_conversation_title
 )
 from app.services.manage_responses import TextHandler, ImageHandler, TextImageHandler, ResponseManager
 
@@ -36,21 +38,37 @@ def get_conversation(conversation_id: str):
         raise HTTPException(status_code=404, detail="Conversation not found")
     return convo
 
-@router.post("/{conversation_id}/stream", response_model=Conversation)
-async def stream_message(conversation_id: str, message: Message):
+@router.delete("/{conversation_id}/user/{user_id}")
+async def delete_conversation(conversation_id: str, user_id: str):
+    return await delete_conversation_by_id(conversation_id, user_id)
+
+# Endpoint to update conversation title (rename)
+@router.put("/{conversation_id}/rename", response_model=Conversation)
+async def rename_conversation(conversation_id: str, request: UpdateConversationRequest):
+    """Rename a conversation by updating its title"""
+    try:
+        updated_convo = update_conversation_title(conversation_id, request.title)
+        if not updated_convo:
+            raise HTTPException(status_code=404, detail="Conversation not found or could not be updated")
+        return updated_convo
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating conversation: {str(e)}")
+
+@router.post("/{conversation_id}/{user_id}/stream", response_model=Conversation)
+async def stream_message(conversation_id: str, user_id: str, message: Message):
     async def generate_response_stream():
         try:
             
             # Determine which handler to use based on message content
             if message.content and not message.image:
                 handler = TextHandler()
-                output_stream = await handler.handle_text_response(input_data=message)
+                output_stream = await handler.handle_text_response(input_data=message, user_id=user_id)
             elif message.image and not message.content:
                 handler = ImageHandler()
                 output_stream = await handler.handle_image_response(input_data=message)
             elif message.content and message.image:
                 handler = TextImageHandler()
-                output_stream = await handler.handle_text_image_response(input_data=message)
+                output_stream = await handler.handle_text_image_response(input_data=message, user_id=user_id)
             else:
                 raise ValueError("Empty message content and image")
             # Stream the output

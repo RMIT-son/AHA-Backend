@@ -22,6 +22,22 @@ class ResponseManager:
         print(f"{process_name} inference took {color}{execution_time:.2f} seconds{end_color}")
     
     @classmethod
+    async def _get_previous_conversations(cls, query: str, collection_name: str, top_k: int = 5) -> list[str]:
+        """Retrieve previous bot responses from conversation history."""
+        try:
+            points = await hybrid_search(
+                query=query,
+                collection_name=collection_name,
+                limit=20
+            )
+            previous_conversations = rrf(points=points, n_points=top_k, payload=["user_message", "bot_response"])
+
+            return previous_conversations
+        except Exception as e:
+            print(f"[Error] Failed to get previous responses: {e}")
+            return []
+    
+    @classmethod
     def _create_stream_predict(cls, model: dspy.Module = None, signature_field_name: str = "response") -> Awaitable[Any]:
         """Helper method to create streamified prediction."""
         return dspy.streamify(
@@ -30,43 +46,64 @@ class ResponseManager:
         )
 
     @classmethod
-    def handle_llm_response(cls, input_data: Message = None) -> AsyncGenerator[str, None]:
+    def _run_stream_predict(cls, model_key: str, **kwargs) -> AsyncGenerator[str, None]:
+        """Initialize and run the model prediction stream."""
+        model = model_manager.get_model(model_key)
+        stream_predict = cls._create_stream_predict(model)
+        return stream_predict(**kwargs)
+
+    @classmethod
+    async def handle_llm_response(cls, input_data: Message, user_id: str) -> AsyncGenerator[str, None]:
         """Handle LLM-only response without context, and return async generator."""
         start_time = time.time()
-
         try:
-            llm_responder = model_manager.get_model("llm_responder")
-            stream_predict = cls._create_stream_predict(llm_responder)
-            output_stream = stream_predict(prompt=input_data.content, image=input_data.image)
+            previous_conversations = await cls._get_previous_conversations(
+                query=input_data.content,
+                collection_name=user_id
+            )
+
+            output_stream = cls._run_stream_predict(
+                model_key="llm_responder",
+                prompt=input_data.content,
+                image=input_data.image,
+                previous_reponses=previous_conversations
+            )
             cls._log_execution_time(start_time, "LLM")
             return output_stream
         except Exception as e:
             raise RuntimeError(f"Stream inference error: {str(e)}")
 
     @classmethod
-    async def handle_rag_response(cls, input_data: Message = None, collection_name: str = None) -> AsyncGenerator[str, None]:
+    async def handle_rag_response(cls, input_data: Message, collection_name: str, user_id: str) -> AsyncGenerator[str, None]:
         """Handle RAG response with context retrieval."""
         start_time = time.time()
-
         try:
-            compose_text_image_prompt = f"Prompt: {input_data.content}\n\n{input_data.image}" if input_data.image else input_data.content
-            # Retrieve context using hybrid search
+            prompt = input_data.content
+            if input_data.image:
+                prompt = f"Prompt: {input_data.content}\n\n{input_data.image}"
+
+            # Get previous messages
+            previous_conversations = await cls._get_previous_conversations(
+                query=input_data.content,
+                collection_name=user_id
+            )
+
+            # Get external context
             points = await hybrid_search(
-                query=compose_text_image_prompt, 
-                collection_name=collection_name, 
+                query=prompt,
+                collection_name=collection_name,
                 limit=4
             )
-            
-            # Apply RRF to get the best context
-            context = rrf(points=points, n_points=2)
-            
-            # Generate response using RAG
-            rag_responder = model_manager.get_model("rag_responder")
-            stream_predict = cls._create_stream_predict(rag_responder)
-            output_stream = stream_predict(context=context, prompt=input_data.content, image=input_data.image)
+            context = rrf(points=points, n_points=2, payload=["text"])
 
+            output_stream = cls._run_stream_predict(
+                model_key="rag_responder",
+                context=context,
+                prompt=input_data.content,
+                image=input_data.image,
+                previous_reponses=previous_conversations
+            )
             cls._log_execution_time(start_time, "RAG")
-
             return output_stream
         except Exception as e:
             raise Exception(f"RAG response failed: {str(e)}")

@@ -53,7 +53,7 @@ class ImageHandler(ResponseManager):
             else:
                 # Non-medical image - use general LLM
                 input_data.image = convert_to_dspy_image(image_data=input_data.image)
-                return cls.handle_llm_response(input_data=input_data)
+                return await cls.handle_llm_response(input_data=input_data)
                 
         except Exception as e:
             print(f"Image response routing failed: {str(e)}")
