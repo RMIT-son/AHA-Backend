@@ -9,7 +9,17 @@ from database.qdrant_client import add_message_vector, delete_conversation_vecto
 
 # Helper function to convert MongoDB document (_id) into a serializable dictionary
 def serialize_mongo_document(doc):
-    """Convert MongoDB document to API-friendly format"""
+    """
+    Convert a MongoDB document into a serializable dictionary for API responses.
+
+    Replaces the `_id` field with a string `id` for frontend compatibility.
+
+    Args:
+        doc (dict): A MongoDB document.
+
+    Returns:
+        dict | None: A sanitized and serializable dictionary, or None if the input is falsy.
+    """
     if not doc:
         return None
     
@@ -21,6 +31,16 @@ def serialize_mongo_document(doc):
 
 # Create a new conversation document in the database
 def create_conversation(user_id: str, title: str):
+    """
+    Create a new conversation document for a given user.
+
+    Args:
+        user_id (str): The ID of the user who owns the conversation.
+        title (str): The title of the conversation.
+
+    Returns:
+        dict: The newly created conversation document with an `id` field.
+    """
     convo = {
         "title": title,
         "user_id": user_id,
@@ -36,6 +56,15 @@ def create_conversation(user_id: str, title: str):
 
 # Retrieve all conversation documents and serialize ObjectId to id
 def get_all_conversations(user_id: str):
+    """
+    Retrieve all conversations belonging to a specific user.
+
+    Args:
+        user_id (str): User ID to filter conversations.
+
+    Returns:
+        list: A list of serialized conversation documents.
+    """
     # Only get conversations belonging to this user
     conversations = list(conversation_collection.find({"user_id": user_id}))
     
@@ -48,6 +77,18 @@ def get_all_conversations(user_id: str):
 
 # Retrieve a single conversation by its string id
 def get_conversation_by_id(convo_id: str):
+    """
+    Retrieve a single conversation by its ID.
+
+    Args:
+        convo_id (str): String ID of the conversation (MongoDB ObjectId).
+
+    Returns:
+        dict | None: The serialized conversation if found, else None.
+
+    Notes:
+        Catches and logs errors if the ObjectId is invalid or a DB error occurs.
+    """
     try:
         convo = conversation_collection.find_one({"_id": ObjectId(convo_id)})
         if convo:
@@ -60,6 +101,21 @@ def get_conversation_by_id(convo_id: str):
 
 # Add a user or bot message to an existing conversation
 async def add_message(convo_id: str, message: Message, response: str):
+    """
+    Add a user message and corresponding assistant response to a conversation.
+
+    Args:
+        convo_id (str): ID of the conversation.
+        message (Message): Message object from the user.
+        response (str): Assistant-generated response.
+
+    Side Effects:
+        - Updates the MongoDB conversation.
+        - Adds corresponding vectors to Qdrant for semantic search and history tracking.
+
+    Returns:
+        None
+    """
     msg = {
         "sender": "user",
         "content": message.content,
@@ -97,6 +153,16 @@ async def add_message(convo_id: str, message: Message, response: str):
 
 """Update the title of a conversation"""
 def update_conversation_title(convo_id: str, new_title: str):
+    """
+    Update the title of a specific conversation.
+
+    Args:
+        convo_id (str): ID of the conversation to update.
+        new_title (str): New title to assign.
+
+    Returns:
+        dict | None: The updated conversation document, or None if update failed.
+    """
     try:
         result = conversation_collection.update_one(
             {"_id": ObjectId(convo_id)},
@@ -115,6 +181,22 @@ def update_conversation_title(convo_id: str, new_title: str):
         return None
 
 async def delete_conversation_by_id(conversation_id: str, user_id: str) -> Dict:
+    """
+    Delete a conversation and its associated vectors in both MongoDB and Qdrant.
+
+    Args:
+        conversation_id (str): The ID of the conversation to delete.
+        user_id (str): The ID of the user to ensure ownership.
+
+    Returns:
+        dict: A message indicating the result and the conversation ID.
+
+    Raises:
+        HTTPException:
+            - 400: If conversation ID is invalid.
+            - 404: If conversation is not found in MongoDB.
+            - 500: If deletion from Qdrant fails after MongoDB deletion.
+    """
     if not ObjectId.is_valid(conversation_id):
         raise HTTPException(status_code=400, detail="Invalid conversation ID")
 
@@ -136,6 +218,15 @@ async def delete_conversation_by_id(conversation_id: str, user_id: str) -> Dict:
     return {"message": "Conversation deleted from MongoDB and Qdrant", "conversation_id": conversation_id}
 
 def serialize_user(user):
+    """
+    Convert a MongoDB user document into a serializable API format.
+
+    Args:
+        user (dict): Raw MongoDB user document.
+
+    Returns:
+        dict | None: Cleaned user data including `id`, `fullName`, `email`, and `phone`.
+    """
     if not user:
         return None
     return {
@@ -147,6 +238,18 @@ def serialize_user(user):
 
 
 def register_user(user_data: UserCreate):
+    """
+    Register a new user after validating uniqueness and hashing the password.
+
+    Args:
+        user_data (UserCreate): The user registration payload.
+
+    Returns:
+        dict: Serialized user object for API response.
+
+    Raises:
+        ValueError: If a user with the same email already exists.
+    """
     print("Registering use function:", user_data)
     existing_user = user_collection.find_one({"email": user_data.email})
     if existing_user:
@@ -170,6 +273,15 @@ def register_user(user_data: UserCreate):
 
 
 def login_user(credentials: UserLogin):
+    """
+    Authenticate a user using email and password.
+
+    Args:
+        credentials (UserLogin): Login request containing email and password.
+
+    Returns:
+        dict | None: Serialized user if authentication is successful, else None.
+    """
     user = user_collection.find_one({"email": credentials.email})
     if user and bcrypt.checkpw(credentials.password.encode("utf-8"), user["password"].encode("utf-8")):
         return serialize_user(user)

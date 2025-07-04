@@ -14,5 +14,20 @@ redis_client = redis.Redis(
 )
 
 def get_config(name: str) -> dict:
-    config = json.loads(redis_client.get(name=name))
-    return config
+    """
+    Retrieve and parse a JSON configuration stored in Redis.
+
+    Args:
+        name (str): Redis key name.
+
+    Returns:
+        dict: Parsed configuration dictionary.
+
+    Raises:
+        KeyError: If the key does not exist in Redis.
+        json.JSONDecodeError: If the stored value is not valid JSON.
+    """
+    raw = redis_client.get(name=name)
+    if raw is None:
+        raise KeyError(f"Config '{name}' not found in Redis.")
+    return json.loads(raw)

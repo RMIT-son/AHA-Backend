@@ -147,7 +147,23 @@ async def add_message_vector(collection_name: str, conversation_id: str, user_me
         print(f"[Qdrant] Error adding message to vector DB: {e}")
 
 async def delete_conversation_vectors(collection_name: str, conversation_id: str):
-    """Delete all vectors in Qdrant for a given conversation ID."""
+    """
+    Delete all vector points in a Qdrant collection associated with a specific conversation ID.
+
+    This function retrieves up to 10,000 points from the specified Qdrant collection,
+    filters them locally by `conversation_id` in the payload, and deletes matching vectors.
+
+    Args:
+        collection_name (str): The name of the Qdrant collection to search.
+        conversation_id (str): The conversation ID used to identify which vectors to delete.
+
+    Logs:
+        - Number of points deleted.
+        - Any errors encountered during the process.
+
+    Raises:
+        Exception: If any error occurs during the scroll or delete operations.
+    """
     try:
         # Get ALL points (no filter to avoid index requirement)
         scrolled_points, _ = await qdrant_client.scroll(

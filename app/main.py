@@ -7,7 +7,23 @@ import asyncio
 
 @asynccontextmanager
 async def lifespan(app):
-    """Application lifespan manager for model loading and cleanup."""
+    """
+    Application lifespan manager for model initialization and cleanup.
+
+    This function is registered with FastAPI's `lifespan` parameter to handle:
+    - Loading required models at startup.
+    - Warming up models asynchronously in the background.
+    - Cleaning up models on application shutdown.
+
+    Args:
+        app (FastAPI): The FastAPI application instance.
+
+    Yields:
+        None: Control is yielded back to FastAPI once startup is complete.
+
+    Raises:
+        Exception: If any error occurs during model loading or warmup, it is printed and re-raised.
+    """
     try:
         # Load models immediately (fast)
         model_manager.load_models()

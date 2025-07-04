@@ -10,7 +10,14 @@ _model_s_embedder = None
 
 def get_dense_embedder():
     """
-    Load dense embedder once
+    Load and return a singleton instance of a dense embedder model.
+
+    Uses the `intfloat/multilingual-e5-small` model from SentenceTransformers
+    to generate dense embeddings. Ensures the model is loaded only once
+    and reused across function calls.
+
+    Returns:
+        SentenceTransformer: An instance of the dense embedding model.
     """
     global _model_d
     if _model_d is None:
@@ -20,7 +27,13 @@ def get_dense_embedder():
 
 def get_sparse_embedder_and_tokenizer():
     """
-    Load sparse embedder and tokenizer once
+    Load and return singleton instances of a sparse embedder model and its tokenizer.
+
+    Uses the `naver/splade-cocondenser-ensembledistil` model from Hugging Face
+    to compute sparse vector representations via masked language modeling.
+
+    Returns:
+        Tuple[PreTrainedTokenizer, PreTrainedModel]: The tokenizer and the embedder model.
     """
     global _model_s_tokenizer, _model_s_embedder
     if _model_s_tokenizer is None or _model_s_embedder is None:
@@ -30,33 +43,54 @@ def get_sparse_embedder_and_tokenizer():
     return _model_s_tokenizer, _model_s_embedder
 
 def compute_dense_vector(text: str = None) -> List[float] | np.ndarray:
-        """
-        Embeds text into dense vectors
-        """
-        embedder = get_dense_embedder()
-        embedded_text = embedder.encode(text)
-        return embedded_text
+    """
+    Convert input text into a dense embedding vector.
+
+    Uses the SentenceTransformer model to produce a dense numerical vector
+    that captures the semantic content of the input text.
+
+    Args:
+        text (str, optional): The input text to embed.
+
+    Returns:
+        List[float] | np.ndarray: A dense vector representation of the input text.
+    """
+    embedder = get_dense_embedder()
+    embedded_text = embedder.encode(text)
+    return embedded_text
 
 def compute_sparse_vector(text: str = None) -> Tuple[List[int], List[float]]:
-        """
-        Computes a vector from logits and attention mask using ReLU, log, and max operations.
-        """
-        tokenizer, embedder = get_sparse_embedder_and_tokenizer()
-        tokens = tokenizer(text, return_tensors="pt")
-        output = embedder(**tokens)
-        logits, attention_mask = output.logits, tokens.attention_mask
-        relu_log = torch.log(1 + torch.relu(logits))
-        weighted_log = relu_log * attention_mask.unsqueeze(-1)
-        max_val, _ = torch.max(weighted_log, dim=1)
-        vec = max_val.squeeze()
+    """
+    Convert input text into a sparse vector using SPLADE technique.
 
-        # Safely get indices of non-zero values
-        indices = torch.nonzero(vec, as_tuple=True)[0].tolist()
+    Tokenizes the input text and passes it through a masked language model,
+    then computes a sparse vector using a combination of ReLU, log, and max-pooling
+    over the logits. Only non-zero indices and their values are returned.
 
-        if isinstance(indices, int):  # if single int, convert to list
-                indices = [indices]
+    Args:
+        text (str, optional): The input text to embed.
 
-        # Safely get corresponding values
-        values = vec[indices].tolist() if indices else []
+    Returns:
+        Tuple[List[int], List[float]]: A tuple containing:
+            - indices (List[int]): Positions of non-zero values in the sparse vector.
+            - values (List[float]): Corresponding non-zero values at those indices.
+    """
+    tokenizer, embedder = get_sparse_embedder_and_tokenizer()
+    tokens = tokenizer(text, return_tensors="pt")
+    output = embedder(**tokens)
+    logits, attention_mask = output.logits, tokens.attention_mask
+    relu_log = torch.log(1 + torch.relu(logits))
+    weighted_log = relu_log * attention_mask.unsqueeze(-1)
+    max_val, _ = torch.max(weighted_log, dim=1)
+    vec = max_val.squeeze()
 
-        return indices, values
+    # Safely get indices of non-zero values
+    indices = torch.nonzero(vec, as_tuple=True)[0].tolist()
+
+    if isinstance(indices, int):  # if single int, convert to list
+            indices = [indices]
+
+    # Safely get corresponding values
+    values = vec[indices].tolist() if indices else []
+
+    return indices, values

@@ -14,10 +14,33 @@ from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader, T
 load_dotenv()
 
 def create_signature_with_doc(base_cls, docstring: str):
-    """Dynamically create a new class inheriting from base_cls with a custom docstring."""
+    """
+    Dynamically create a subclass of the given base class with a custom docstring.
+
+    Useful for modifying or documenting classes at runtime (e.g., in API schemas or DSLs).
+
+    Args:
+        base_cls (type): The base class to extend.
+        docstring (str): The new docstring to apply to the dynamically created class.
+
+    Returns:
+        type: A new subclass of `base_cls` with the specified docstring.
+    """
     return type(base_cls.__name__, (base_cls,), {"__doc__": docstring})
 
 def load_documents(folder_path):
+    """
+    Load all `.pdf` and `.txt` documents from the specified folder using langchain loaders.
+
+    Args:
+        folder_path (str): Path to the folder containing documents.
+
+    Returns:
+        list: A list of loaded document objects.
+
+    Raises:
+        SystemExit: If the folder does not exist or no documents are loaded.
+    """
     if not os.path.exists(folder_path):
         print(f"[red]ERROR: Folder '{folder_path}' does not exist![/red]")
         exit(1)
@@ -44,6 +67,20 @@ def load_documents(folder_path):
     return all_docs
 
 def split_documents(documents, chunk_size=512, chunk_overlap=50):
+    """
+    Split documents into smaller overlapping chunks using a recursive character splitter.
+
+    Args:
+        documents (list): List of document objects to split.
+        chunk_size (int, optional): Maximum number of characters per chunk. Default is 512.
+        chunk_overlap (int, optional): Number of overlapping characters between chunks. Default is 50.
+
+    Returns:
+        list: A list of document chunks.
+
+    Raises:
+        SystemExit: If no chunks are created.
+    """
     splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     all_chunks = []
 
@@ -59,6 +96,14 @@ def split_documents(documents, chunk_size=512, chunk_overlap=50):
     return all_chunks
 
 async def ensure_collection(collection_name):
+    """
+    Ensure that a Qdrant collection exists, and create it if not.
+
+    The collection is created with both dense and sparse vector configurations.
+
+    Args:
+        collection_name (str): Name of the Qdrant collection to check or create.
+    """
     if not await qdrant_client.collection_exists(collection_name=collection_name):
         print(f"[yellow]Creating collection: {collection_name}...[/yellow]")
         await qdrant_client.create_collection(
@@ -77,6 +122,18 @@ async def ensure_collection(collection_name):
         print(f"[cyan]Collection '{collection_name}' already exists.[/cyan]")
 
 def embed_chunks(chunks):
+    """
+    Generate dense and sparse vector embeddings for each document chunk.
+
+    Args:
+        chunks (list): List of document chunks to embed.
+
+    Returns:
+        list: List of `PointStruct` objects ready for ingestion into Qdrant.
+
+    Raises:
+        SystemExit: If no valid points are created.
+    """
     points = []
     for i, chunk in enumerate(track(chunks, description="🧠 Embedding chunks")):
         try:
@@ -104,6 +161,17 @@ def embed_chunks(chunks):
     return points
 
 async def ingest_points(collection_name, points, batch_size=100):
+    """
+    Ingest vector points into a Qdrant collection in batches.
+
+    Args:
+        collection_name (str): The target Qdrant collection name.
+        points (list): List of `PointStruct` objects to insert.
+        batch_size (int, optional): Number of points per batch. Default is 100.
+
+    Logs:
+        Success or failure for each batch, and a final ingestion summary.
+    """
     print("Starting ingestion...")
     total = len(points)
     successful_batches = 0
@@ -123,6 +191,15 @@ async def ingest_points(collection_name, points, batch_size=100):
     print(f"[green]Ingestion complete: {successful_batches}/{total_batches} batches[/green]")
 
 async def verify_collection(collection_name):
+    """
+    Retrieve and print metadata about a Qdrant collection, such as point count.
+
+    Args:
+        collection_name (str): The name of the collection to inspect.
+
+    Logs:
+        Number of points or any error encountered.
+    """
     try:
         collection_info = await qdrant_client.get_collection(collection_name)
         print(f"[green]Collection now contains {collection_info.points_count} points[/green]")

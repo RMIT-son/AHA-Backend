@@ -63,9 +63,15 @@ def rrf(points: list[types.QueryResponse] = None, n_points: int = None, payload:
             A string containing the concatenated content (text) of the top documents
         """
         try:
+            if not points or len(points) < 2:
+                return "[System] Welcome! How can I help you today?"
+            
             # Separate dense and sparse results
             dense_results = points[0].points
             sparse_results = points[1].points
+            
+            if not dense_results and not sparse_results:
+                return "[System] This is your first message. Feel free to ask me anything!"
             
             # Collect all unique document IDs from both dense and sparse results
             all_doc_ids = set()

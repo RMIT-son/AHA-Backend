@@ -17,7 +17,16 @@ class ModelManager:
         self.lm = set_lm_configure(config=get_config("llm"))
 
     def load_models(self) -> None:
-        """Load and initialize all ML models."""
+        """
+        Load and initialize all required machine learning models.
+
+        This includes:
+        - Configuring the DSPy language model environment.
+        - Initializing task-specific LLM instances (e.g., responder, RAG, summarizer, classifier).
+        - Loading dense and sparse embedding models.
+
+        After successful execution, all models are stored in `self.models`.
+        """
         print("Loading LLM models...")
         
         # Set LM configuration 
@@ -36,23 +45,48 @@ class ModelManager:
         print("All models loaded successfully!")
     
     async def warmup_models(self) -> None:
-        """Warm up all models with dummy inference."""
+        """
+        Perform dummy inferences to warm up all models.
+
+        This helps reduce latency for the first real request by
+        pre-loading weights, compiling graph representations, or priming caches.
+        """
         await warmup_all_models(self.models)
     
     def get_model(self, model_name: str) -> Any:
-        """Get a specific model by name."""
+        """
+        Retrieve a loaded model instance by its name.
+
+        Args:
+            model_name (str): The name identifier of the model to retrieve.
+
+        Returns:
+            Any: The model instance.
+
+        Raises:
+            KeyError: If the model name is not found in `self.models`.
+        """
         if model_name not in self.models:
             raise KeyError(f"Model '{model_name}' not found. Available models: {list(self.models.keys())}")
         return self.models[model_name]
     
     def cleanup_models(self) -> None:
-        """Clean up models and release resources."""
+        """
+        Release resources and clear all loaded models.
+
+        Useful for graceful shutdowns or reinitialization.
+        """
         print("Cleaning up ML models...")
         self.models.clear()
         print("ML models cleaned up!")
     
     def get_history(self):
-        """Get history metadata of the last usage"""
+        """
+        Retrieve metadata of the most recent interaction with the LM.
+
+        Returns:
+            dict or object: The last entry in the LM's internal history log.
+        """
         return self.lm.history[-1]
 
 

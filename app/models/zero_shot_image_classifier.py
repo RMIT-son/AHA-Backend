@@ -46,7 +46,7 @@ class ZeroShotImageClassification():
          device = "cuda:0" if torch.cuda.is_available() else "cpu" 
 
          if self.lang == "en":
-            model_tag = "RN50"
+            model_tag = "RN101"
             if "model" in kwargs:
                 model_tag = kwargs["model"] 
             print("Loading OpenAI CLIP model {} ...".format(model_tag))    

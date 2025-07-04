@@ -57,7 +57,29 @@ def convert_to_dspy_image(image_data: Union[str, bytes, PILImage.Image, io.Bytes
 
 
 def _convert_to_pil(image_data: Union[str, bytes, PILImage.Image, io.BytesIO] = None) -> PILImage.Image:
-    """Convert input data to PIL Image"""
+    """
+    Convert various types of image input into a PIL Image object.
+
+    Supports:
+    - URLs (http/https)
+    - Data URI base64 strings
+    - Plain base64-encoded image strings
+    - Local file paths
+    - Raw bytes
+    - io.BytesIO objects
+    - Existing PIL Image objects
+
+    Args:
+        image_data (Union[str, bytes, PILImage.Image, io.BytesIO], optional): The input image data.
+
+    Returns:
+        PILImage.Image: A PIL-compatible image object.
+
+    Raises:
+        ValueError: If the image data type is unsupported.
+        FileNotFoundError: If a local file path does not exist.
+        requests.HTTPError: If the HTTP request for a URL fails.
+    """
     if isinstance(image_data, str):
         if image_data.startswith(('http://', 'https://')):
             # URL
@@ -99,7 +121,15 @@ def _convert_to_pil(image_data: Union[str, bytes, PILImage.Image, io.BytesIO] = 
 
 
 def _is_base64(string: str = None) -> bool:
-    """Check if string is valid base64"""
+    """
+    Check if a string is a valid base64-encoded value.
+
+    Args:
+        string (str, optional): The string to check.
+
+    Returns:
+        bool: True if the string is valid base64, False otherwise.
+    """
     try:
         if len(string) % 4 != 0:
             return False
@@ -110,7 +140,19 @@ def _is_base64(string: str = None) -> bool:
 
 
 def _handle_file_path_pil(file_path: str = None) -> PILImage.Image:
-    """Handle local file path conversion to PIL"""
+    """
+    Convert a valid local image file path to a PIL Image.
+
+    Args:
+        file_path (str, optional): The file path to the image.
+
+    Returns:
+        PILImage.Image: A PIL image object.
+
+    Raises:
+        FileNotFoundError: If the file path does not exist.
+        ValueError: If the path is not a file or not a supported image format.
+    """
     path = Path(file_path)
     
     if not path.exists():

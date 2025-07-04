@@ -10,7 +10,22 @@ class ImageHandler(ResponseManager):
 
     @classmethod
     async def handle_image_response(cls, input_data: Message = None) -> AsyncGenerator[str, None]:
-        """Handle image-only response with classification and routing."""
+        """
+        Handle image-only messages by classifying the image and routing the request accordingly.
+
+        This method first performs classification to determine whether the image is medical-related.
+        Based on the classification result, it either routes the input to a RAG (Retrieval-Augmented Generation)
+        pipeline or to a general LLM responder.
+
+        Args:
+            input_data (Message): The message containing the image to process.
+
+        Yields:
+            AsyncGenerator[str, None]: A stream of generated response chunks.
+
+        Raises:
+            Exception: If classification or routing fails.
+        """
         start_time = time.time()
         try:
             # Classify image
@@ -28,7 +43,21 @@ class ImageHandler(ResponseManager):
 
     @classmethod
     async def _classify_image(cls, input_data: Message = None) -> str:
-        """Classify image input."""
+        """
+        Perform classification on the input image to determine its content.
+
+        First attempts general image classification. If the result indicates it's medical-related,
+        proceeds with a fine-grained disease classification.
+
+        Args:
+            input_data (Message): The message containing the image to classify.
+
+        Returns:
+            str: Classification label or disease prediction result.
+
+        Raises:
+            Exception: If classification fails.
+        """
         try:
             # Get classifier and classify image
             classifier = await cls.get_classifier()
@@ -43,7 +72,22 @@ class ImageHandler(ResponseManager):
 
     @classmethod
     async def _route_image_response(cls, input_data: Message = None, image_result: str = None) -> AsyncGenerator[str, None]:
-        """Route image response based on classification with parallel processing."""
+        """
+        Route the classified image to the appropriate response handler based on classification result.
+
+        - If the image is medical-related, forwards to RAG responder using disease name as collection.
+        - If not, converts image to DSPy format and sends to general LLM.
+
+        Args:
+            input_data (Message): The original message object containing image and optional metadata.
+            image_result (str): The classification label for the image.
+
+        Yields:
+            AsyncGenerator[str, None]: A stream of generated response text.
+
+        Raises:
+            Exception: If routing fails or downstream handlers encounter errors.
+        """
         try:
             is_medical = image_result != "not-medical-related"
 

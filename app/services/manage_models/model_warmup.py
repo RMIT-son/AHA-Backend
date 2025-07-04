@@ -1,7 +1,3 @@
-"""
-Model warm-up utilities to preload and test all ML components.
-"""
-
 import torch
 from typing import Dict, Any
 from database import DummyScoredPoint, DummyQueryResponse
@@ -11,7 +7,16 @@ from app.modules import (
 )
 
 def warmup_embedding_models(ml_models: Dict[str, Any] = None, dummy_text: str = "This is a test query to warm up the models.") -> None:
-    """Warm up dense and sparse embedding models."""
+    """
+    Perform warm-up inference for dense and sparse embedding models.
+
+    This function encodes a dummy text input to trigger internal model graph loading
+    and caching for both dense and sparse embedders.
+
+    Args:
+        ml_models (Dict[str, Any], optional): Dictionary containing loaded models.
+        dummy_text (str, optional): A sample input text used for warm-up.
+    """
     print("Warming up embedding models...")
     
     # Warm up dense embedder
@@ -26,7 +31,15 @@ def warmup_embedding_models(ml_models: Dict[str, Any] = None, dummy_text: str = 
 
 
 async def warmup_llm_models(ml_models: Dict[str, Any] = None) -> None:
-    """Warm up LLM models with dummy inference."""
+    """
+    Asynchronously warm up all LLM-based components (e.g., LLM, RAG, classifier).
+
+    This function is intended to perform dummy forward passes for each LLM-type model
+    to reduce initial latency when handling real user inputs.
+
+    Args:
+        ml_models (Dict[str, Any], optional): Dictionary containing loaded models.
+    """
     print("Warming up LLM models...")
     
     # _ = await ml_models["llm_responder"].forward(prompt="Hello")
@@ -36,7 +49,12 @@ async def warmup_llm_models(ml_models: Dict[str, Any] = None) -> None:
     print("LLM models warmed up!")
 
 async def warmup_hybrid_search_function() -> None:
-    """Warm up the hybrid search function."""
+    """
+    Warm up the hybrid search function by executing a dummy query.
+
+    This triggers model loading, index access, and scoring logic
+    in the search pipeline to reduce first-query latency.
+    """
     _ = await hybrid_search(
         query="What are the common treatments for atopic dermatitis?",
         collection_name="dermatology",
@@ -45,7 +63,12 @@ async def warmup_hybrid_search_function() -> None:
     print("Hybrid search function warmed up!")
 
 def warmup_rrf_function() -> None:
-    """Warm up the RRF function with dummy data."""
+    """
+    Warm up the Reciprocal Rank Fusion (RRF) function using dummy data.
+
+    This prepares the RRF scoring logic for real hybrid search results
+    by running a sample ranking computation using mock dense and sparse scores.
+    """
     print("Warming up RRF function...")
     
     # Create dummy dense search results
@@ -88,7 +111,21 @@ def warmup_rrf_function() -> None:
 
 
 async def warmup_all_models(ml_models: Dict[str, Any] = None) -> None:
-    """Warm up all models and functions."""
+    """
+    Perform full-system warm-up of all ML models and core search functions.
+
+    This includes:
+    - Dense and sparse embedding models
+    - LLMs (responder, RAG, classifier)
+    - Hybrid search pipeline
+    - Reciprocal Rank Fusion (RRF)
+
+    Args:
+        ml_models (Dict[str, Any], optional): Dictionary containing all initialized model components.
+
+    Raises:
+        Exception: If any part of the warm-up process fails, the exception is printed and re-raised.
+    """
     print("Starting model warm-up process...")
     
     try:
