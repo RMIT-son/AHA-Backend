@@ -237,7 +237,7 @@ async def hybrid_search(query: str = None, collection_name: str = None, limit: i
         """
         try:
             # Generate query vectors
-            embedded_query, (query_indices, query_values) = await embed(query)
+            embedded_query, query_indices, query_values = await embed(query)
             
             # Perform separate searches for dense and sparse vectors
             results = await qdrant_client.query_batch_points(

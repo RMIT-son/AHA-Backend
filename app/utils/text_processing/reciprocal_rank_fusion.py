@@ -1,3 +1,4 @@
+import traceback
 from qdrant_client.conversions import common_types as types
 
 def rrf(points: list[types.QueryResponse] = None, n_points: int = None, payload: list[str] = None, k: int = 60) -> str:
@@ -68,4 +69,6 @@ def rrf(points: list[types.QueryResponse] = None, n_points: int = None, payload:
             return "\n\n---------------------------\n\n".join(context_chunks)
             
         except Exception as e:
+            print("[RRF Exception Traceback]")
+            traceback.print_exc()
             return f"[RRF Error] {e}"

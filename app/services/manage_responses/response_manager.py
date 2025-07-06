@@ -108,7 +108,6 @@ class ResponseManager:
                 )
             )
             context = rrf(points=points, n_points=3, payload=["text"])
-            print(context)
             rag_responder = model_manager.get_model("rag_responder")
             stream_predict = cls._create_stream_predict(rag_responder)
             output_stream = stream_predict(context=context, prompt=input_data.content, image=input_data.image, recent_conversations=recent_conversations)
