@@ -12,6 +12,7 @@ from database.queries import (
     get_conversation_by_id, add_message, delete_conversation_by_id, 
     update_conversation_title
 )
+from app.utils import build_error_response
 from app.services.manage_responses import TextHandler, ImageHandler, TextImageHandler, ResponseManager
 
 # Create a router with a common prefix and tag for all conversation-related endpoints
@@ -30,9 +31,36 @@ async def create_conversation_by_user_id(user_id: str, message: Message):
     Returns:
         Conversation: The newly created conversation with a generated title.
     """
-    title = await ResponseManager.summarize(message)
-    result = create_conversation(user_id=user_id, title=title)
-    return result
+    try:
+        if not user_id:
+            return build_error_response(
+                "INVALID_INPUT",
+                "User ID is required",
+                400
+            )
+        
+        if not message or not message.content:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Message content is required",
+                400
+            )
+        
+        title = await ResponseManager.summarize(message)
+        result = create_conversation(user_id=user_id, title=title)
+        
+        # Check if result is an error response
+        if isinstance(result, JSONResponse):
+            return result
+        
+        return result
+        
+    except Exception as e:
+        return build_error_response(
+            "CONVERSATION_CREATION_FAILED",
+            f"Failed to create conversation: {str(e)}",
+            500
+        )
 
 
 # Endpoint to retrieve all conversations stored in the database
@@ -47,8 +75,28 @@ def get_all_conversations_by_user_id(user_id: str):
     Returns:
         list[Conversation]: A list of the user's stored conversations.
     """
-    conversations = get_all_conversations(user_id)
-    return conversations
+    try:
+        if not user_id:
+            return build_error_response(
+                "INVALID_INPUT",
+                "User ID is required",
+                400
+            )
+        
+        conversations = get_all_conversations(user_id)
+        
+        # Check if result is an error response
+        if isinstance(conversations, JSONResponse):
+            return conversations
+        
+        return conversations
+        
+    except Exception as e:
+        return build_error_response(
+            "CONVERSATIONS_RETRIEVAL_FAILED",
+            f"Failed to retrieve conversations: {str(e)}",
+            500
+        )
 
 
 # Endpoint to retrieve a specific conversation by its ID
@@ -60,16 +108,38 @@ def get_conversation(conversation_id: str):
     Args:
         conversation_id (str): The ID of the conversation.
 
-    Raises:
-        HTTPException: If the conversation is not found.
-
     Returns:
         Conversation: The conversation object matching the given ID.
     """
-    convo = get_conversation_by_id(conversation_id)
-    if not convo:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    return convo
+    try:
+        if not conversation_id:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Conversation ID is required",
+                400
+            )
+        
+        convo = get_conversation_by_id(conversation_id)
+        
+        # Check if result is an error response
+        if isinstance(convo, JSONResponse):
+            return convo
+        
+        if not convo:
+            return build_error_response(
+                "CONVERSATION_NOT_FOUND",
+                "Conversation not found",
+                404
+            )
+        
+        return convo
+        
+    except Exception as e:
+        return build_error_response(
+            "CONVERSATION_RETRIEVAL_FAILED",
+            f"Failed to retrieve conversation: {str(e)}",
+            500
+        )
 
 
 @router.delete("/{conversation_id}/user/{user_id}")
@@ -84,7 +154,31 @@ async def delete_conversation(conversation_id: str, user_id: str):
     Returns:
         JSONResponse: A success message or error details.
     """
-    return await delete_conversation_by_id(conversation_id, user_id)
+    try:
+        if not conversation_id or not user_id:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Conversation ID and user ID are required",
+                400
+            )
+        
+        result = await delete_conversation_by_id(conversation_id, user_id)
+        
+        # Check if result is an error response
+        if isinstance(result, JSONResponse):
+            return result
+        
+        return JSONResponse(
+            status_code=200,
+            content=result
+        )
+        
+    except Exception as e:
+        return build_error_response(
+            "CONVERSATION_DELETION_FAILED",
+            f"Failed to delete conversation: {str(e)}",
+            500
+        )
 
 
 # Endpoint to update conversation title (rename)
@@ -97,22 +191,48 @@ async def rename_conversation(conversation_id: str, request: UpdateConversationR
         conversation_id (str): The ID of the conversation to rename.
         request (UpdateConversationRequest): The request containing the new title.
 
-    Raises:
-        HTTPException: If the conversation is not found or the update fails.
-
     Returns:
         Conversation: The updated conversation with the new title.
     """
     try:
+        if not conversation_id:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Conversation ID is required",
+                400
+            )
+        
+        if not request or not request.title:
+            return build_error_response(
+                "INVALID_INPUT",
+                "New title is required",
+                400
+            )
+        
         updated_convo = update_conversation_title(conversation_id, request.title)
+        
+        # Check if result is an error response
+        if isinstance(updated_convo, JSONResponse):
+            return updated_convo
+        
         if not updated_convo:
-            raise HTTPException(status_code=404, detail="Conversation not found or could not be updated")
+            return build_error_response(
+                "CONVERSATION_NOT_FOUND",
+                "Conversation not found or could not be updated",
+                404
+            )
+        
         return updated_convo
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error updating conversation: {str(e)}")
+        return build_error_response(
+            "CONVERSATION_UPDATE_FAILED",
+            f"Failed to update conversation: {str(e)}",
+            500
+        )
 
 
-@router.post("/{conversation_id}/{user_id}/stream", response_model=Conversation)
+@router.post("/{conversation_id}/{user_id}/stream")
 async def stream_message(conversation_id: str, user_id: str, message: Message):
     """
     Stream a response to a user's message (text, image, or both) and update the conversation.
@@ -125,38 +245,74 @@ async def stream_message(conversation_id: str, user_id: str, message: Message):
     Returns:
         StreamingResponse: A streamed response via Server-Sent Events (SSE).
     """
-    async def generate_response_stream():
-        try:
-            # Determine appropriate handler based on message content
-            if message.content and not message.image:
-                handler = TextHandler()
-                output_stream = await handler.handle_text_response(input_data=message, user_id=user_id)
-            elif message.image and not message.content:
-                handler = ImageHandler()
-                output_stream = await handler.handle_image_response(input_data=message)
-            elif message.content and message.image:
-                handler = TextImageHandler()
-                output_stream = await handler.handle_text_image_response(input_data=message, user_id=user_id)
-            else:
-                raise ValueError("Empty message content and image")
-
-            # Stream the response output
-            async for chunk in output_stream:
-                if isinstance(chunk, dspy.streaming.StreamResponse):
-                    yield f"data: {chunk.chunk}\n\n"
-                elif isinstance(chunk, dspy.Prediction):
-                    yield "data: [DONE]\n\n"
-                    asyncio.create_task(
-                        add_message(convo_id=conversation_id, message=message, response=chunk.response)
-                    )
-        except Exception as e:
-            yield f"data: ERROR - {str(e)}\n\n"
-
     try:
+        if not conversation_id or not user_id:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Conversation ID and user ID are required",
+                400
+            )
+        
+        if not message:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Message is required",
+                400
+            )
+        
+        if not message.content and not message.image:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Message must contain either text content or image",
+                400
+            )
+        
+        async def generate_response_stream():
+            try:
+                # Determine appropriate handler based on message content
+                if message.content and not message.image:
+                    handler = TextHandler()
+                    output_stream = await handler.handle_text_response(input_data=message, user_id=user_id)
+                elif message.image and not message.content:
+                    handler = ImageHandler()
+                    output_stream = await handler.handle_image_response(input_data=message)
+                elif message.content and message.image:
+                    handler = TextImageHandler()
+                    output_stream = await handler.handle_text_image_response(input_data=message, user_id=user_id)
+                else:
+                    yield f"data: ERROR - Empty message content and image\n\n"
+                    return
+
+                # Stream the response output
+                async for chunk in output_stream:
+                    if isinstance(chunk, dspy.streaming.StreamResponse):
+                        yield f"data: {chunk.chunk}\n\n"
+                    elif isinstance(chunk, dspy.Prediction):
+                        yield "data: [DONE]\n\n"
+                        # Add message to conversation in background
+                        asyncio.create_task(
+                            add_message(convo_id=conversation_id, message=message, response=chunk.response)
+                        )
+            except ValueError as ve:
+                yield f"data: ERROR - Invalid input: {str(ve)}\n\n"
+            except Exception as e:
+                yield f"data: ERROR - Stream processing failed: {str(e)}\n\n"
+
         return StreamingResponse(
             generate_response_stream(),
             media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Cache-Control"
+            }
         )
+        
     except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        return build_error_response(
+            "STREAM_INITIALIZATION_FAILED",
+            f"Failed to initialize message stream: {str(e)}",
+            500
+        )
 

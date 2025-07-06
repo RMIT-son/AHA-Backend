@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from database.schemas import UserCreate, UserLogin, UserResponse
-
+from app.utils import build_error_response
 from database.queries import register_user, login_user
 
 # Create router with prefix and tag
@@ -16,21 +16,90 @@ def register(user: UserCreate):
     Args:
         user (UserCreate): The user registration data including email, password, and any other required fields.
 
-    Raises:
-        HTTPException: If the registration data is invalid (e.g., email already exists).
-
     Returns:
         UserResponse: The registered user data including user ID and other non-sensitive information.
     """
     try:
+        if not user:
+            return build_error_response(
+                "INVALID_INPUT",
+                "User data is required",
+                400
+            )
+        
+        if not user.email:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Email is required",
+                400
+            )
+        
+        if not user.password:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Password is required",
+                400
+            )
+        
+        if not user.fullName:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Full name is required",
+                400
+            )
+        
+        # Validate email format (basic check)
+        if "@" not in user.email or "." not in user.email:
+            return build_error_response(
+                "INVALID_EMAIL_FORMAT",
+                "Invalid email format",
+                400
+            )
+        
+        # Validate password strength (basic check)
+        if len(user.password) < 6:
+            return build_error_response(
+                "WEAK_PASSWORD",
+                "Password must be at least 6 characters long",
+                400
+            )
+        
         result = register_user(user)
         print("Serialized user result:", result)
+        
+        # Check if result is an error response
+        if isinstance(result, JSONResponse):
+            return result
+        
+        if not result:
+            return build_error_response(
+                "REGISTRATION_FAILED",
+                "User registration failed",
+                500
+            )
+        
         return result
+        
     except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
+        # Handle specific ValueError (like user already exists)
+        if "already exists" in str(ve).lower():
+            return build_error_response(
+                "USER_ALREADY_EXISTS",
+                "User with this email already exists",
+                409
+            )
+        return build_error_response(
+            "INVALID_INPUT",
+            str(ve),
+            400
+        )
     except Exception as e:
         print("Unexpected error:", e)
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        return build_error_response(
+            "REGISTRATION_FAILED",
+            f"Registration failed: {str(e)}",
+            500
+        )
 
 
 # Endpoint to login a user
@@ -42,16 +111,58 @@ def login(user: UserLogin):
     Args:
         user (UserLogin): The user login credentials, typically email and password.
 
-    Raises:
-        HTTPException: If authentication fails due to invalid credentials.
-
     Returns:
         UserResponse: The authenticated user data including user ID and profile details.
     """
     try:
+        if not user:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Login credentials are required",
+                400
+            )
+        
+        if not user.email:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Email is required",
+                400
+            )
+        
+        if not user.password:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Password is required",
+                400
+            )
+        
+        # Validate email format (basic check)
+        if "@" not in user.email or "." not in user.email:
+            return build_error_response(
+                "INVALID_EMAIL_FORMAT",
+                "Invalid email format",
+                400
+            )
+        
         result = login_user(user)
+        
+        # Check if result is an error response
+        if isinstance(result, JSONResponse):
+            return result
+        
         if not result:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
+            return build_error_response(
+                "INVALID_CREDENTIALS",
+                "Invalid email or password",
+                401
+            )
+        
         return result
+        
     except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        print("Unexpected error during login:", e)
+        return build_error_response(
+            "LOGIN_FAILED",
+            f"Login failed: {str(e)}",
+            500
+        )
