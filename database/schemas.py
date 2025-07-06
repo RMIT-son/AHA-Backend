@@ -34,13 +34,3 @@ class UserResponse(BaseModel):
 
 class UpdateConversationRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200, description="New title for the conversation")
-
-class DummyScoredPoint(BaseModel):
-    """Simulates a Qdrant ScoredPoint for testing purposes."""
-    score: float
-    payload: Dict[str, Union[str, float, int, bool, None]]
-    id: Union[str, int]
-
-class DummyQueryResponse(BaseModel):
-    """Simulates a Qdrant QueryResponse for testing purposes."""
-    points: List[DummyScoredPoint]

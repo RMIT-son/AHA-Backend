@@ -8,25 +8,8 @@ from qdrant_client import models
 from database.qdrant_client import qdrant_client
 from qdrant_client.http.exceptions import UnexpectedResponse
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from app.modules import compute_dense_vector, compute_sparse_vector
+from app.utils import compute_dense_vector, compute_sparse_vector
 from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader, TextLoader
-
-load_dotenv()
-
-def create_signature_with_doc(base_cls, docstring: str):
-    """
-    Dynamically create a subclass of the given base class with a custom docstring.
-
-    Useful for modifying or documenting classes at runtime (e.g., in API schemas or DSLs).
-
-    Args:
-        base_cls (type): The base class to extend.
-        docstring (str): The new docstring to apply to the dynamically created class.
-
-    Returns:
-        type: A new subclass of `base_cls` with the specified docstring.
-    """
-    return type(base_cls.__name__, (base_cls,), {"__doc__": docstring})
 
 def load_documents(folder_path):
     """

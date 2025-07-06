@@ -2,12 +2,11 @@ import dspy
 from typing import Dict, Any
 from app.models import RAG, LLM, Classifier
 from database.redis_client import get_config
-from app.modules.orchestration.llm_gateway import set_lm_configure
-from app.modules import (
+from app.utils.orchestration.llm_gateway import set_lm_configure
+from app.utils import (
     get_dense_embedder, 
     get_sparse_embedder_and_tokenizer
 )
-from .model_warmup import warmup_all_models
 
 class ModelManager:
     """Manages the lifecycle of ML models."""
@@ -43,15 +42,6 @@ class ModelManager:
         self.models["sparse_tokenizer"], self.models["sparse_embedder"] = get_sparse_embedder_and_tokenizer()
         
         print("All models loaded successfully!")
-    
-    async def warmup_models(self) -> None:
-        """
-        Perform dummy inferences to warm up all models.
-
-        This helps reduce latency for the first real request by
-        pre-loading weights, compiling graph representations, or priming caches.
-        """
-        await warmup_all_models(self.models)
     
     def get_model(self, model_name: str) -> Any:
         """

@@ -1,4 +1,5 @@
 import torch
+import asyncio
 import numpy as np
 from typing import List, Tuple
 from sentence_transformers import SentenceTransformer
@@ -42,7 +43,7 @@ def get_sparse_embedder_and_tokenizer():
         _model_s_embedder = AutoModelForMaskedLM.from_pretrained("naver/splade-cocondenser-ensembledistil")
     return _model_s_tokenizer, _model_s_embedder
 
-def compute_dense_vector(text: str = None) -> List[float] | np.ndarray:
+async def compute_dense_vector(text: str = None) -> List[float] | np.ndarray:
     """
     Convert input text into a dense embedding vector.
 
@@ -59,7 +60,7 @@ def compute_dense_vector(text: str = None) -> List[float] | np.ndarray:
     embedded_text = embedder.encode(text)
     return embedded_text
 
-def compute_sparse_vector(text: str = None) -> Tuple[List[int], List[float]]:
+async def compute_sparse_vector(text: str = None) -> Tuple[List[int], List[float]]:
     """
     Convert input text into a sparse vector using SPLADE technique.
 
@@ -94,3 +95,21 @@ def compute_sparse_vector(text: str = None) -> Tuple[List[int], List[float]]:
     values = vec[indices].tolist() if indices else []
 
     return indices, values
+
+async def embed(text: str) -> tuple[list[float], list[int], list[float]]:
+    """
+    Generate dense and sparse embeddings for a given text.
+    Returns:
+        dense_vec: List of floats representing dense embedding
+        indices: List of ints for sparse embedding indices
+        values: List of floats for sparse embedding values
+    """
+    try:
+        dense_vec, (indices, values) = await asyncio.gather(
+            compute_dense_vector(text),
+            compute_sparse_vector(text)
+        )
+        return dense_vec, indices, values
+    except Exception as e:
+        print(f"[Embedding Error] Failed to embed text: {text}. Error: {e}")
+        return [], [], []

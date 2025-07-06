@@ -3,7 +3,7 @@ import asyncio
 from rich import print
 from database import Message
 from typing import AsyncGenerator
-from ..translator import translate_text
+from googletrans import Translator
 from .response_manager import ResponseManager
 
 class TextHandler(ResponseManager):
@@ -29,7 +29,6 @@ class TextHandler(ResponseManager):
             text_result = await cls._classify_text(input_data)
             print(f"Text classification completed: {text_result}")
             
-            
             # Route based on classification
             return await cls._route_text_response(input_data, text_result, user_id=user_id)
             
@@ -52,13 +51,16 @@ class TextHandler(ResponseManager):
             Exception: If translation, classification, or either task fails.
         """
         try:
-            # Run translation and classifier loading in parallel
-            translate_task = translate_text(text=input_data.content, dest="en")
-            classifier_task = cls.get_classifier()
-            
-            start_time = time.time()
+            async with Translator() as translator:
+                translate_task = translator.translate(text=input_data.content, src="auto", dest="en")
+                
+                classifier_task = cls.get_classifier()
 
-            translated_prompt, classifier = await asyncio.gather(translate_task, classifier_task)
+                start_time = time.time()
+
+                # Run both coroutines concurrently
+                translated_prompt, classifier = await asyncio.gather(translate_task, classifier_task)
+                
             # Classify text
             text_result = await classifier.classify_text(prompt=translated_prompt.text)
             

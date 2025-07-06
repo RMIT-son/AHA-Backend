@@ -22,10 +22,7 @@ googletrans
 sentence_transformers
 fastembed
 qdrant_client
-# Evaluation & Datasets
-ragas
-datasets
-ranx
+
 # Databases
 pymongo
 redis

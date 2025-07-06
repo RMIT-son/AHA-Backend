@@ -3,13 +3,12 @@ import dspy
 import asyncio
 from rich import print
 from database import Message
+from app.utils.text_processing import rrf
+from database.qdrant_client import hybrid_search
 from typing import Any, AsyncGenerator, Awaitable
 from ..manage_models.model_manager import model_manager
-from app.modules.image_processing import convert_to_dspy_image
-from app.modules.text_processing import (
-    hybrid_search,
-    rrf,
-)
+from app.utils.image_processing import convert_to_dspy_image
+from database.qdrant_client import get_recent_conversations
 
 class ResponseManager:
     """Base handler for different types of response generation."""
@@ -30,44 +29,6 @@ class ResponseManager:
         color = "[green]" if "RAG" in process_name or "Dynamic" in process_name else ""
         end_color = "[/green]" if color else ""
         print(f"{process_name} inference took {color}{execution_time:.2f} seconds{end_color}")
-    
-    @classmethod
-    async def _get_previous_user_messages(cls, query: str, collection_name: str, top_k: int = 5) -> str:
-        """
-        Retrieve previous user messages from the conversation history using hybrid search and RRF ranking.
-
-        Args:
-            query (str): The current user input.
-            collection_name (str): The Qdrant collection name (usually the user ID).
-            top_k (int): Number of top messages to return.
-
-        Returns:
-            str: A string of concatenated previous user messages, wrapped in a contextual label.
-
-        Raises:
-            Exception: If the search or ranking fails.
-        """
-        try:
-            points = await hybrid_search(
-                query=query,
-                collection_name=collection_name,
-                limit=20
-            )
-            previous_user_messages = rrf(
-                points=points,
-                n_points=top_k,
-                payload=["user_message"]
-            )
-
-            # Wrap in delimiters to signal optional context
-            if previous_user_messages:
-                return f"Previous user messages:\n{previous_user_messages}"
-            else:
-                return ""
-
-        except Exception as e:
-            print(f"[Error] Failed to get previous responses: {e}")
-            return ""
 
     @classmethod
     def _create_stream_predict(cls, model: dspy.Module = None, signature_field_name: str = "response") -> Awaitable[Any]:
@@ -103,14 +64,12 @@ class ResponseManager:
         """
         start_time = time.time()
         try:
-            previous_user_messages = await cls._get_previous_user_messages(
-                query=input_data.content,
+            recent_conversations = await get_recent_conversations(
                 collection_name=user_id
             )
-            print(f"{previous_user_messages}")
             llm_responder = model_manager.get_model("llm_responder")
             stream_predict = cls._create_stream_predict(llm_responder)
-            output_stream = stream_predict(prompt=input_data.content, image=input_data.image, previous_user_messages=previous_user_messages)
+            output_stream = stream_predict(prompt=input_data.content, image=input_data.image, recent_conversations=recent_conversations)
             cls._log_execution_time(start_time, "LLM")
             return output_stream
         except Exception as e:
@@ -138,9 +97,8 @@ class ResponseManager:
             if input_data.image:
                 prompt = f"Prompt: {input_data.content}\n\n{input_data.image}"
 
-            previous_user_messages, points = await asyncio.gather(
-                cls._get_previous_user_messages(
-                    query=input_data.content,
+            recent_conversations, points = await asyncio.gather(
+                get_recent_conversations(
                     collection_name=user_id
                 ),
                 hybrid_search(
@@ -149,13 +107,11 @@ class ResponseManager:
                     limit=4
                 )
             )
-            context = rrf(points=points, n_points=2, payload=["text"])
-            print(f"Context:{context}\n")
-            print(f"{previous_user_messages}")
-            
+            context = rrf(points=points, n_points=3, payload=["text"])
+            print(context)
             rag_responder = model_manager.get_model("rag_responder")
             stream_predict = cls._create_stream_predict(rag_responder)
-            output_stream = stream_predict(context=context, prompt=input_data.content, image=input_data.image, previous_user_messages=previous_user_messages)
+            output_stream = stream_predict(context=context, prompt=input_data.content, image=input_data.image, recent_conversations=recent_conversations)
             cls._log_execution_time(start_time, "RAG")
             return output_stream
         except Exception as e:

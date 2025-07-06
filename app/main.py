@@ -3,7 +3,6 @@ from app.api.routes import conversation, auth
 from contextlib import asynccontextmanager
 from app.services.manage_models.model_manager import model_manager
 from fastapi.middleware.cors import CORSMiddleware
-import asyncio
 
 @asynccontextmanager
 async def lifespan(app):
@@ -29,7 +28,7 @@ async def lifespan(app):
         model_manager.load_models()
 
         # Warm up models asynchronously in background
-        asyncio.create_task(model_manager.warmup_models())
+        # model_manager.warmup_models()
 
         print("Application startup completed successfully!")
         yield

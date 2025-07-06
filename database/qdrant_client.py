@@ -1,9 +1,12 @@
 import os
+import asyncio
 from uuid import uuid4
-from dotenv import load_dotenv
 from typing import List
+from dotenv import load_dotenv
 from qdrant_client import AsyncQdrantClient, models
-from qdrant_client.models import PointStruct, ScoredPoint
+from app.utils.text_processing.text_embedding import embed
+from qdrant_client.conversions import common_types as types
+from qdrant_client.models import PointStruct, ScoredPoint, PointIdsList
 
 # Load environment variables from .env file
 load_dotenv()
@@ -13,26 +16,6 @@ qdrant_client = AsyncQdrantClient(
     url=os.getenv("QDRANT_URL"), 
     api_key=os.getenv("QDRANT_API_KEY")
 )
-
-def embed(text: str) -> tuple[list[float], list[int], list[float]]:
-    """
-    Generate dense and sparse embeddings for a given text.
-    Returns:
-        dense_vec: List of floats representing dense embedding
-        indices: List of ints for sparse embedding indices
-        values: List of floats for sparse embedding values
-    """
-    from app.modules.text_processing.embedders import (
-        compute_dense_vector,
-        compute_sparse_vector,
-    )
-    try:
-        dense_vec = compute_dense_vector(text)
-        indices, values = compute_sparse_vector(text)
-        return dense_vec, indices, values
-    except Exception as e:
-        print(f"[Embedding Error] Failed to embed text: {text}. Error: {e}")
-        return [], [], []
 
 async def get_all_messages(collection_name: str) -> List[ScoredPoint]:
     """
@@ -69,7 +52,7 @@ async def remove_oldest_message(existing_messages: list, collection_name: str):
         oldest = sorted(existing_messages, key=lambda p: p.payload["timestamp"])[0]
         await qdrant_client.delete(
             collection_name=collection_name,
-            points_selector={"points": [oldest.id]}
+            points_selector=PointIdsList(points=[oldest.id])
         )
     except Exception as e:
         print(f"[Qdrant] Error removing oldest message from {collection_name}: {e}")
@@ -119,7 +102,7 @@ async def add_message_vector(collection_name: str, conversation_id: str, user_me
             await remove_oldest_message(existing_messages, collection_name)
 
         # Generate dense and sparse embeddings for the message
-        dense_vector, sparse_indices, sparse_values = embed(user_message)
+        dense_vector, sparse_indices, sparse_values = await embed(user_message)
 
         # Upsert the message and its embeddings into Qdrant
         await qdrant_client.upsert(
@@ -192,3 +175,91 @@ async def delete_conversation_vectors(collection_name: str, conversation_id: str
     except Exception as e:
         print(f"[Qdrant] Error deleting conversation vectors: {e}")
         raise
+
+async def get_recent_conversations(collection_name: str, limit: int = 50) -> str:
+    """
+    Retrieve the most recent conversations from the Qdrant collection based on timestamp.
+
+    Args:
+        collection_name: Name of the Qdrant collection
+        limit: Number of recent conversations to retrieve (default: 50)
+
+    Returns:
+        Formatted string with timestamp, user_message, and bot_response for each conversation
+    """
+    try:
+        # Get all points first
+        scrolled_points, _ = await qdrant_client.scroll(
+            collection_name=collection_name,
+            limit=limit,
+            with_payload=True
+        )
+        if scrolled_points:
+            # Sort by timestamp (newest first) and take the specified limit
+            sorted_conversations = sorted(
+                scrolled_points,
+                key=lambda x: x.payload.get('timestamp', ''),
+                reverse=False
+            )
+            
+            recent_conversations = sorted_conversations
+            
+            # Format conversations as string
+            context_chunks = []
+            payload_keys = ['user_message', 'bot_response']
+            
+            for idx, doc in enumerate(recent_conversations):
+                payload_content = [f"{key}: {doc.payload.get(key, '')}" for key in payload_keys]
+                content = f"Conversation {idx}:\n" + "\n".join(payload_content)
+                context_chunks.append(content)
+
+            
+            separator = "\n\n-----------------------------------------\n\n"
+            return f"Recent conversations:\n{separator.join(context_chunks)}"
+        else:
+            return "This is user's first ever message"
+        
+    except Exception as e:
+        print(f"[Qdrant] Error fetching recent conversations for collection {collection_name}: {e}")
+        return ""
+
+async def hybrid_search(query: str = None, collection_name: str = None, limit: int = None) -> list[types.QueryResponse]:
+        """
+        Perform hybrid search using both dense and sparse vectors with Reciprocal Rank Fusion (RRF) from ranx.
+        
+        Args:
+            query: The search query
+            collection_name: Name of the Qdrant collection
+            limit: Number of final results to return
+        
+        Returns:
+            List of search results ranked by RRF score
+        """
+        try:
+            # Generate query vectors
+            embedded_query, (query_indices, query_values) = await embed(query)
+            
+            # Perform separate searches for dense and sparse vectors
+            results = await qdrant_client.query_batch_points(
+                collection_name=collection_name,
+                requests=[
+                    models.QueryRequest(
+                        query=embedded_query,
+                        using="text-embedding",
+                        limit=limit, 
+                        with_payload=True
+                    ),
+                    models.QueryRequest(
+                        query=models.SparseVector(
+                            indices=query_indices,
+                            values=query_values,
+                        ),
+                        limit=limit, 
+                        with_payload=True,
+                        using="sparse-embedding"
+                    ),
+                ],
+            )
+            return results
+        except Exception as e:
+            return {"error": str(e)}

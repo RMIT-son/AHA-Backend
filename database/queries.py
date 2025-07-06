@@ -3,31 +3,10 @@ from typing import Dict
 from bson import ObjectId
 from datetime import datetime
 from fastapi import HTTPException
+from app.utils import build_error_response, serialize_mongo_document
 from database.schemas import UserCreate, UserLogin, Message
 from .mongo_client import conversation_collection, user_collection
 from database.qdrant_client import add_message_vector, delete_conversation_vectors
-
-# Helper function to convert MongoDB document (_id) into a serializable dictionary
-def serialize_mongo_document(doc):
-    """
-    Convert a MongoDB document into a serializable dictionary for API responses.
-
-    Replaces the `_id` field with a string `id` for frontend compatibility.
-
-    Args:
-        doc (dict): A MongoDB document.
-
-    Returns:
-        dict | None: A sanitized and serializable dictionary, or None if the input is falsy.
-    """
-    if not doc:
-        return None
-    
-    doc = doc.copy()
-    if "_id" in doc:
-        doc["id"] = str(doc["_id"])  # Replace MongoDB's _id with stringified id
-        del doc["_id"]
-    return doc
 
 # Create a new conversation document in the database
 def create_conversation(user_id: str, title: str):
@@ -40,19 +19,36 @@ def create_conversation(user_id: str, title: str):
 
     Returns:
         dict: The newly created conversation document with an `id` field.
-    """
-    convo = {
-        "title": title,
-        "user_id": user_id,
-        "created_at": datetime.utcnow(),
-        "messages": []
-    }
-    result = conversation_collection.insert_one(convo)
-
-    # Add the inserted ObjectId as a string id for frontend compatibility
-    convo["id"] = str(result.inserted_id)
     
-    return convo
+    Raises:
+        JSONResponse: Error response if creation fails.
+    """
+    try:
+        if not user_id or not title:
+            return build_error_response(
+                "INVALID_INPUT",
+                "User ID and title are required",
+                400
+            )
+        
+        convo = {
+            "title": title,
+            "user_id": user_id,
+            "created_at": datetime.utcnow(),
+            "messages": []
+        }
+        result = conversation_collection.insert_one(convo)
+
+        # Add the inserted ObjectId as a string id for frontend compatibility
+        convo["id"] = str(result.inserted_id)
+        
+        return convo
+    except Exception as e:
+        return build_error_response(
+            "CONVERSATION_CREATION_FAILED",
+            f"Failed to create conversation: {str(e)}",
+            500
+        )
 
 # Retrieve all conversation documents and serialize ObjectId to id
 def get_all_conversations(user_id: str):
@@ -64,16 +60,33 @@ def get_all_conversations(user_id: str):
 
     Returns:
         list: A list of serialized conversation documents.
+    
+    Raises:
+        JSONResponse: Error response if retrieval fails.
     """
-    # Only get conversations belonging to this user
-    conversations = list(conversation_collection.find({"user_id": user_id}))
-    
-    for convo in conversations:
-        if "_id" in convo:
-            convo["id"] = str(convo["_id"])
-            del convo["_id"]
-    
-    return conversations
+    try:
+        if not user_id:
+            return build_error_response(
+                "INVALID_INPUT",
+                "User ID is required",
+                400
+            )
+        
+        # Only get conversations belonging to this user
+        conversations = list(conversation_collection.find({"user_id": user_id}))
+        
+        for convo in conversations:
+            if "_id" in convo:
+                convo["id"] = str(convo["_id"])
+                del convo["_id"]
+        
+        return conversations
+    except Exception as e:
+        return build_error_response(
+            "CONVERSATIONS_RETRIEVAL_FAILED",
+            f"Failed to retrieve conversations: {str(e)}",
+            500
+        )
 
 # Retrieve a single conversation by its string id
 def get_conversation_by_id(convo_id: str):
@@ -85,19 +98,40 @@ def get_conversation_by_id(convo_id: str):
 
     Returns:
         dict | None: The serialized conversation if found, else None.
-
-    Notes:
-        Catches and logs errors if the ObjectId is invalid or a DB error occurs.
+    
+    Raises:
+        JSONResponse: Error response if retrieval fails or ID is invalid.
     """
     try:
+        if not convo_id:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Conversation ID is required",
+                400
+            )
+        
+        if not ObjectId.is_valid(convo_id):
+            return build_error_response(
+                "INVALID_CONVERSATION_ID",
+                "Invalid conversation ID format",
+                400
+            )
+        
         convo = conversation_collection.find_one({"_id": ObjectId(convo_id)})
         if convo:
             return serialize_mongo_document(convo)
-        return None
+        
+        return build_error_response(
+            "CONVERSATION_NOT_FOUND",
+            "Conversation not found",
+            404
+        )
     except Exception as e:
-        # If ObjectId is invalid (e.g. wrong format), catch and log
-        print(f"Error finding conversation: {e}")
-        return None
+        return build_error_response(
+            "CONVERSATION_RETRIEVAL_FAILED",
+            f"Failed to retrieve conversation: {str(e)}",
+            500
+        )
 
 # Add a user or bot message to an existing conversation
 async def add_message(convo_id: str, message: Message, response: str):
@@ -114,42 +148,81 @@ async def add_message(convo_id: str, message: Message, response: str):
         - Adds corresponding vectors to Qdrant for semantic search and history tracking.
 
     Returns:
-        None
+        dict: Success message or error response.
+    
+    Raises:
+        JSONResponse: Error response if message addition fails.
     """
-    msg = {
-        "sender": "user",
-        "content": message.content,
-        "timestamp": message.timestamp
-    }
+    try:
+        if not convo_id or not message or not response:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Conversation ID, message, and response are required",
+                400
+            )
+        
+        if not ObjectId.is_valid(convo_id):
+            return build_error_response(
+                "INVALID_CONVERSATION_ID",
+                "Invalid conversation ID format",
+                400
+            )
+        
+        msg = {
+            "sender": "user",
+            "content": message.content,
+            "timestamp": message.timestamp
+        }
 
-    bot_reply = {
-        "sender": "assistant",
-        "content": response,
-        "timestamp": datetime.utcnow()
-    }
-    
-    # Push both user message and bot reply into the conversation
-    conversation_collection.update_one(
-        {"_id": ObjectId(convo_id)},
-        {"$push": {"messages": {"$each": [msg, bot_reply]}}}
-    )
-    
-    # Add message to Qdrant for history tracking
-    # Lookup conversation
-    convo = conversation_collection.find_one({"_id": ObjectId(convo_id)})
-    if not convo:
-        return None
-    # Extract user_id from the conversation document
-    user_id = convo["user_id"]
+        bot_reply = {
+            "sender": "assistant",
+            "content": response,
+            "timestamp": datetime.utcnow()
+        }
+        
+        # Push both user message and bot reply into the conversation
+        update_result = conversation_collection.update_one(
+            {"_id": ObjectId(convo_id)},
+            {"$push": {"messages": {"$each": [msg, bot_reply]}}}
+        )
+        
+        if update_result.matched_count == 0:
+            return build_error_response(
+                "CONVERSATION_NOT_FOUND",
+                "Conversation not found",
+                404
+            )
+        
+        # Add message to Qdrant for history tracking
+        # Lookup conversation
+        convo = conversation_collection.find_one({"_id": ObjectId(convo_id)})
+        if not convo:
+            return build_error_response(
+                "CONVERSATION_NOT_FOUND",
+                "Conversation not found after update",
+                404
+            )
+        
+        # Extract user_id from the conversation document
+        user_id = convo["user_id"]
 
-    # Store the message and bot response vector in Qdrant for retrieval/history
-    await add_message_vector(
-        collection_name=user_id,
-        conversation_id=convo_id,
-        user_message=message.content,
-        bot_response=response,
-        timestamp=msg["timestamp"].isoformat(),
-    )
+        # Store the message and bot response vector in Qdrant for retrieval/history
+        await add_message_vector(
+            collection_name=user_id,
+            conversation_id=convo_id,
+            user_message=message.content,
+            bot_response=response,
+            timestamp=msg["timestamp"].isoformat(),
+        )
+        
+        return {"message": "Message added successfully", "conversation_id": convo_id}
+        
+    except Exception as e:
+        return build_error_response(
+            "MESSAGE_ADDITION_FAILED",
+            f"Failed to add message: {str(e)}",
+            500
+        )
 
 """Update the title of a conversation"""
 def update_conversation_title(convo_id: str, new_title: str):
@@ -161,24 +234,55 @@ def update_conversation_title(convo_id: str, new_title: str):
         new_title (str): New title to assign.
 
     Returns:
-        dict | None: The updated conversation document, or None if update failed.
+        dict: The updated conversation document or error response.
+    
+    Raises:
+        JSONResponse: Error response if update fails.
     """
     try:
+        if not convo_id or not new_title:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Conversation ID and new title are required",
+                400
+            )
+        
+        if not ObjectId.is_valid(convo_id):
+            return build_error_response(
+                "INVALID_CONVERSATION_ID",
+                "Invalid conversation ID format",
+                400
+            )
+        
         result = conversation_collection.update_one(
             {"_id": ObjectId(convo_id)},
             {"$set": {"title": new_title}}
         )
         
+        if result.matched_count == 0:
+            return build_error_response(
+                "CONVERSATION_NOT_FOUND",
+                "Conversation not found",
+                404
+            )
+        
         if result.modified_count == 0:
-            return None
+            return build_error_response(
+                "TITLE_UPDATE_FAILED",
+                "Title update failed - no changes made",
+                400
+            )
             
         # Return the updated conversation
         updated_convo = conversation_collection.find_one({"_id": ObjectId(convo_id)})
         return serialize_mongo_document(updated_convo)
         
     except Exception as e:
-        print(f"Error updating conversation title: {e}")
-        return None
+        return build_error_response(
+            "TITLE_UPDATE_FAILED",
+            f"Failed to update conversation title: {str(e)}",
+            500
+        )
 
 async def delete_conversation_by_id(conversation_id: str, user_id: str) -> Dict:
     """
@@ -192,30 +296,54 @@ async def delete_conversation_by_id(conversation_id: str, user_id: str) -> Dict:
         dict: A message indicating the result and the conversation ID.
 
     Raises:
-        HTTPException:
-            - 400: If conversation ID is invalid.
-            - 404: If conversation is not found in MongoDB.
-            - 500: If deletion from Qdrant fails after MongoDB deletion.
+        JSONResponse: Error response if deletion fails.
     """
-    if not ObjectId.is_valid(conversation_id):
-        raise HTTPException(status_code=400, detail="Invalid conversation ID")
-
-    # Step 1: Delete from MongoDB
-    result = conversation_collection.delete_one({
-        "_id": ObjectId(conversation_id),
-        "user_id": user_id
-    })
-
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Conversation not found or already deleted")
-
-    # Step 2: Delete from Qdrant
     try:
-        await delete_conversation_vectors(collection_name=user_id, conversation_id=conversation_id)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Deleted in MongoDB but failed in Qdrant: {str(e)}")
+        if not conversation_id or not user_id:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Conversation ID and user ID are required",
+                400
+            )
+        
+        if not ObjectId.is_valid(conversation_id):
+            return build_error_response(
+                "INVALID_CONVERSATION_ID",
+                "Invalid conversation ID format",
+                400
+            )
 
-    return {"message": "Conversation deleted from MongoDB and Qdrant", "conversation_id": conversation_id}
+        # Step 1: Delete from MongoDB
+        result = conversation_collection.delete_one({
+            "_id": ObjectId(conversation_id),
+            "user_id": user_id
+        })
+
+        if result.deleted_count == 0:
+            return build_error_response(
+                "CONVERSATION_NOT_FOUND",
+                "Conversation not found or already deleted",
+                404
+            )
+
+        # Step 2: Delete from Qdrant
+        try:
+            await delete_conversation_vectors(collection_name=user_id, conversation_id=conversation_id)
+        except Exception as e:
+            return build_error_response(
+                "QDRANT_DELETION_FAILED",
+                f"Deleted in MongoDB but failed in Qdrant: {str(e)}",
+                500
+            )
+
+        return {"message": "Conversation deleted from MongoDB and Qdrant", "conversation_id": conversation_id}
+        
+    except Exception as e:
+        return build_error_response(
+            "CONVERSATION_DELETION_FAILED",
+            f"Failed to delete conversation: {str(e)}",
+            500
+        )
 
 def serialize_user(user):
     """
@@ -245,31 +373,50 @@ def register_user(user_data: UserCreate):
         user_data (UserCreate): The user registration payload.
 
     Returns:
-        dict: Serialized user object for API response.
+        dict: Serialized user object for API response or error response.
 
     Raises:
-        ValueError: If a user with the same email already exists.
+        JSONResponse: Error response if registration fails.
     """
-    print("Registering use function:", user_data)
-    existing_user = user_collection.find_one({"email": user_data.email})
-    if existing_user:
-        raise ValueError("User already exists")
+    try:
+        print("Registering user function:", user_data)
+        
+        if not user_data.email or not user_data.password:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Email and password are required",
+                400
+            )
+        
+        existing_user = user_collection.find_one({"email": user_data.email})
+        if existing_user:
+            return build_error_response(
+                "USER_ALREADY_EXISTS",
+                "User with this email already exists",
+                409
+            )
 
-    hashed_pw = bcrypt.hashpw(user_data.password.encode("utf-8"), bcrypt.gensalt())
+        hashed_pw = bcrypt.hashpw(user_data.password.encode("utf-8"), bcrypt.gensalt())
 
-    new_user = {
-        "fullName": user_data.fullName,
-        "email": user_data.email,
-        "password": hashed_pw.decode("utf-8"),  # Store as string
-        "phone": user_data.phone
-    }
-    print("Create new user", new_user)
-    
-
-    result = user_collection.insert_one(new_user)
-    print("Inserted user with ID:", result.inserted_id)
-    new_user["_id"] = result.inserted_id
-    return serialize_user(new_user)
+        new_user = {
+            "fullName": user_data.fullName,
+            "email": user_data.email,
+            "password": hashed_pw.decode("utf-8"),  # Store as string
+            "phone": user_data.phone
+        }
+        print("Create new user", new_user)
+        
+        result = user_collection.insert_one(new_user)
+        print("Inserted user with ID:", result.inserted_id)
+        new_user["_id"] = result.inserted_id
+        return serialize_user(new_user)
+        
+    except Exception as e:
+        return build_error_response(
+            "USER_REGISTRATION_FAILED",
+            f"Failed to register user: {str(e)}",
+            500
+        )
 
 
 def login_user(credentials: UserLogin):
@@ -280,9 +427,39 @@ def login_user(credentials: UserLogin):
         credentials (UserLogin): Login request containing email and password.
 
     Returns:
-        dict | None: Serialized user if authentication is successful, else None.
+        dict: Serialized user if authentication is successful, else error response.
+    
+    Raises:
+        JSONResponse: Error response if login fails.
     """
-    user = user_collection.find_one({"email": credentials.email})
-    if user and bcrypt.checkpw(credentials.password.encode("utf-8"), user["password"].encode("utf-8")):
+    try:
+        if not credentials.email or not credentials.password:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Email and password are required",
+                400
+            )
+        
+        user = user_collection.find_one({"email": credentials.email})
+        if not user:
+            return build_error_response(
+                "INVALID_CREDENTIALS",
+                "Invalid email or password",
+                401
+            )
+        
+        if not bcrypt.checkpw(credentials.password.encode("utf-8"), user["password"].encode("utf-8")):
+            return build_error_response(
+                "INVALID_CREDENTIALS",
+                "Invalid email or password",
+                401
+            )
+        
         return serialize_user(user)
-    return None
+        
+    except Exception as e:
+        return build_error_response(
+            "LOGIN_FAILED",
+            f"Login failed: {str(e)}",
+            500
+        )

@@ -3,7 +3,7 @@ from rich import print
 from database import Message
 from typing import AsyncGenerator
 from .response_manager import ResponseManager
-from app.modules.image_processing import convert_to_dspy_image
+from app.utils.image_processing import convert_to_dspy_image
 
 class ImageHandler(ResponseManager):
     """Handler specialized for image-only inputs."""

@@ -1,9 +1,9 @@
 import dspy
 from typing import Optional, Union
-from app.services.utils import create_signature_with_doc
+from app.utils import create_signature_with_doc
 
 class LLMResponse(dspy.Signature):
-    previous_user_messages: str = dspy.InputField(description="Past user messages")
+    recent_conversations: Optional[str] = dspy.InputField(optional=True, description="Recent conversations")
     prompt: str = dspy.InputField()
     image: Optional[Union[str, dspy.Image]] = dspy.InputField(optional=True, description="Image from user")
     response: str = dspy.OutputField()
@@ -22,7 +22,7 @@ class LLM(dspy.Module):
 
         self.response = self.predictor_cls(self.signature_cls, temperature=self.temperature, max_tokens=self.max_tokens)
 
-    async def forward(self, image: Optional[dspy.Image] = None, prompt: str = None, previous_reponses: str = None) -> str:
+    async def forward(self, image: Optional[dspy.Image] = None, prompt: str = None, recent_conversations: str = None) -> str:
         """
         Generate a model response based on the provided prompt, image, and optional conversation history.
 
@@ -37,5 +37,5 @@ class LLM(dspy.Module):
         Returns:
             str: The generated response from the model.
         """
-        response = await self.response.acall(prompt=prompt, image=image, previous_reponses=previous_reponses)
+        response = await self.response.acall(prompt=prompt, image=image, recent_conversations=recent_conversations)
         return response.response

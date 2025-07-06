@@ -26,7 +26,8 @@ def set_lm_configure(config: dict = None):
             model=config["model"],
             base_url=os.getenv("OPEN_ROUTER_URL"),
             api_key=os.getenv("OPEN_ROUTER_API_KEY"),
-            cache=False,
+            cache=True,
+            cache_in_memory=True,
             track_usage=True,
         )
     return lm

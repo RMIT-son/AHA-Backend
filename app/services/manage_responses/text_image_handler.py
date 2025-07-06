@@ -4,7 +4,7 @@ from rich import print
 from database import Message
 from typing import AsyncGenerator
 from ..manage_responses import TextHandler, ImageHandler
-from app.modules.image_processing import convert_to_dspy_image
+from app.utils.image_processing import convert_to_dspy_image
 
 class TextImageHandler(TextHandler, ImageHandler):
     """Handler specialized for text+image inputs."""

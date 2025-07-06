@@ -1,7 +1,8 @@
 import dspy
 from typing import Optional
 from .llm import LLM, LLMResponse
-from app.services.utils import create_signature_with_doc
+from app.utils import create_signature_with_doc
+
 class RAGResponse(LLMResponse):
     context: str = dspy.InputField(description="Context retrieved from the knowledge base")
 

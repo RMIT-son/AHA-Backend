@@ -15,7 +15,7 @@ class Classifier:
         self.candidate_labels = self.config["candidate_labels"]
         self.zero_shot_text_classification = pipeline(
             "zero-shot-classification", 
-            model="MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli-ling-wanli"
+            model="facebook/bart-large-mnli"
         )
         self.zero_shot_image_classification = ZeroShotImageClassification()
         self.zero_shot_disease_classification = pipeline(
@@ -28,7 +28,7 @@ class Classifier:
         Classify a text prompt using zero-shot classification.
 
         This function uses a zero-shot text classification model to determine the most appropriate
-        label from a predefined list (`self.candidate_labels`), such as ["not-medical-related", "medical-related"].
+        label from a predefined list (`self.candidate_labels`), such as ["not-medical-related", "dermatology",...].
 
         Args:
             prompt (str, optional): The input text to be classified.
