@@ -2,9 +2,16 @@ from datetime import datetime
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Union
 
+class FileData(BaseModel):
+    """Represents an uploaded file with metadata"""
+    name: str
+    type: str  # MIME type like 'image/jpeg', 'image/png', etc.
+    size: int
+    data: str  # Base64 encoded file data (includes data URL prefix)s
 class Message(BaseModel):   
     content: Optional[str] = None
-    image: Optional[Union[str, bytes]] = None
+    image: Optional[Union[str, bytes]] = None  # Keep for backward compatibility
+    files: Optional[List[FileData]] = Field(default_factory=list)  # New files field
     timestamp: Optional[datetime] = None
 
 class Conversation(BaseModel):
@@ -44,3 +51,4 @@ class DummyScoredPoint(BaseModel):
 class DummyQueryResponse(BaseModel):
     """Simulates a Qdrant QueryResponse for testing purposes."""
     points: List[DummyScoredPoint]
+    

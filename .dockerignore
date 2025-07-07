@@ -5,8 +5,8 @@ __pycache__/
 *.pyd
 
 # Environment/Secrets
-*.env
-*.env.*
+# *.env
+# *.env.*
 env.*
 venv/
 .venv/
