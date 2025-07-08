@@ -9,7 +9,7 @@ class ImageHandler(ResponseManager):
     """Handler specialized for image-only inputs."""
 
     @classmethod
-    async def handle_image_response(cls, input_data: Message = None) -> AsyncGenerator[str, None]:
+    async def handle_image_response(cls, input_data: Message = None, user_id: str = None) -> AsyncGenerator[str, None]:
         """
         Handle image-only messages by classifying the image and routing the request accordingly.
 
@@ -26,16 +26,13 @@ class ImageHandler(ResponseManager):
         Raises:
             Exception: If classification or routing fails.
         """
-        start_time = time.time()
         try:
             # Classify image
             image_result = await cls._classify_image(input_data=input_data)
             print(f"Image classification completed: {image_result}")
             
-            cls._log_execution_time(start_time, "Image Classification")
-            
             # Route based on classification
-            return await cls._route_image_response(input_data=input_data, image_result=image_result)
+            return await cls._route_image_response(input_data=input_data, image_result=image_result, user_id=user_id)
 
         except Exception as e:
             print(f"Image response handling failed: {str(e)}")
@@ -58,12 +55,12 @@ class ImageHandler(ResponseManager):
         Raises:
             Exception: If classification fails.
         """
+        start_time = time.time()
         try:
             # Get classifier and classify image
             classifier = await cls.get_classifier()
             image_result = await classifier.classify_image(image=input_data.image)
-            if image_result != "not-medical-related":
-                image_result = await classifier.classify_disease(image=input_data.image)
+            cls._log_execution_time(start_time, "Image Classification")
             return image_result
             
         except Exception as e:
@@ -71,7 +68,7 @@ class ImageHandler(ResponseManager):
             raise Exception(f"Image classification failed: {str(e)}")
 
     @classmethod
-    async def _route_image_response(cls, input_data: Message = None, image_result: str = None) -> AsyncGenerator[str, None]:
+    async def _route_image_response(cls, input_data: Message = None, image_result: str = None, user_id: str = None) -> AsyncGenerator[str, None]:
         """
         Route the classified image to the appropriate response handler based on classification result.
 
@@ -92,12 +89,13 @@ class ImageHandler(ResponseManager):
             is_medical = image_result != "not-medical-related"
 
             if is_medical:
-                input_data.image = image_result
-                return await cls.handle_rag_response(input_data=input_data, collection_name=image_result)
+                classifier = await cls.get_classifier()
+                input_data.image = await classifier.classify_disease(image=input_data.image)
+                return await cls.handle_rag_response(input_data=input_data, collection_name=image_result, user_id=user_id)
             else:
                 # Non-medical image - use general LLM
                 input_data.image = convert_to_dspy_image(image_data=input_data.image)
-                return await cls.handle_llm_response(input_data=input_data)
+                return await cls.handle_llm_response(input_data=input_data, user_id=user_id)
                 
         except Exception as e:
             print(f"Image response routing failed: {str(e)}")

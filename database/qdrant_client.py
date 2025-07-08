@@ -1,8 +1,7 @@
-import os
-import asyncio
 from uuid import uuid4
 from typing import List
 from dotenv import load_dotenv
+from database.redis_client import get_config
 from qdrant_client import AsyncQdrantClient, models
 from app.utils.text_processing.text_embedding import embed
 from qdrant_client.conversions import common_types as types
@@ -10,11 +9,11 @@ from qdrant_client.models import PointStruct, ScoredPoint, PointIdsList
 
 # Load environment variables from .env file
 load_dotenv()
-
+api_keys = get_config("api_keys")
 # Initialize Qdrant async client using environment variables
 qdrant_client = AsyncQdrantClient(
-    url=os.getenv("QDRANT_URL"), 
-    api_key=os.getenv("QDRANT_API_KEY")
+    url=api_keys["QDRANT_URL"], 
+    api_key=api_keys["QDRANT_API_KEY"]
 )
 
 async def get_all_messages(collection_name: str) -> List[ScoredPoint]:
@@ -176,7 +175,7 @@ async def delete_conversation_vectors(collection_name: str, conversation_id: str
         print(f"[Qdrant] Error deleting conversation vectors: {e}")
         raise
 
-async def get_recent_conversations(collection_name: str, limit: int = 50) -> str:
+async def get_recent_conversations(collection_name: str, limit: int = 5) -> str:
     """
     Retrieve the most recent conversations from the Qdrant collection based on timestamp.
 

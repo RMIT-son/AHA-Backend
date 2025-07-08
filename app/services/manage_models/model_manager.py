@@ -1,6 +1,6 @@
 import dspy
 from typing import Dict, Any
-from app.models import RAG, LLM, Classifier
+from app.models import RAG, LLM, Classifier, Summarizer
 from database.redis_client import get_config
 from app.utils.orchestration.llm_gateway import set_lm_configure
 from app.utils import (
@@ -34,7 +34,7 @@ class ModelManager:
         # Initialize LLM models
         self.models["llm_responder"] = LLM(config=get_config("llm"))
         self.models["rag_responder"] = RAG(config=get_config("rag"))
-        self.models["summarizer"] = LLM(config=get_config("summarizer"))
+        self.models["summarizer"] = Summarizer(config=get_config("summarizer"))
         self.models["classifier"] = Classifier(config=get_config("task_classifier"))
         
         # Load embedding models

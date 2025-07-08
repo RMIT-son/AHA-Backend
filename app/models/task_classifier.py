@@ -1,9 +1,10 @@
 import os
+import base64
 import asyncio
 import requests
 from PIL import Image
 from io import BytesIO
-from typing import Optional
+from typing import Optional, Union
 from transformers import pipeline
 from .zero_shot_image_classifier import ZeroShotImageClassification
 
@@ -44,7 +45,7 @@ class Classifier:
         return result["labels"][0]
 
 
-    def _load_image(self, image: str | Image.Image = None) -> Image.Image:
+    def _load_image(self, image: Union[str, Image.Image] = None) -> Image.Image:
         """
         Helper function to load and standardize image input.
 
@@ -64,13 +65,24 @@ class Classifier:
                 response = requests.get(image)
                 response.raise_for_status()
                 return Image.open(BytesIO(response.content)).convert("RGB")
+
+            elif image.startswith("data:image/"):
+                # Handle base64-encoded image string
+                try:
+                    header, base64_data = image.split(",", 1)
+                    decoded_bytes = base64.b64decode(base64_data)
+                    return Image.open(BytesIO(decoded_bytes)).convert("RGB")
+                except Exception as e:
+                    raise ValueError(f"Failed to decode base64 image: {e}")
+
             elif os.path.isfile(image):
                 return Image.open(image).convert("RGB")
-            else:
-                raise ValueError("Invalid image path or URL.")
 
-        if isinstance(image, Image):
-            return image.to_pil().convert("RGB") if hasattr(image, "to_pil") else image
+            else:
+                raise ValueError("Invalid image path, URL, or base64 string.")
+
+        if isinstance(image, Image.Image):
+            return image.to_pil().convert("RGB") if hasattr(image, "to_pil") else image.convert("RGB")
 
         raise ValueError("Unsupported image input type.")
 

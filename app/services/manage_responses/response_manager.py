@@ -67,6 +67,7 @@ class ResponseManager:
             recent_conversations = await get_recent_conversations(
                 collection_name=user_id
             )
+            print(recent_conversations)
             llm_responder = model_manager.get_model("llm_responder")
             stream_predict = cls._create_stream_predict(llm_responder)
             output_stream = stream_predict(prompt=input_data.content, image=input_data.image, recent_conversations=recent_conversations)
@@ -93,10 +94,11 @@ class ResponseManager:
         """
         start_time = time.time()
         try:
-            prompt = input_data.content
-            if input_data.image:
-                prompt = f"Prompt: {input_data.content}\n\n{input_data.image}"
+            text_content = input_data.content or ""
+            image_desc = input_data.image or ""
 
+            prompt = f"{text_content}\n\n{image_desc}".strip() 
+            print(prompt)
             recent_conversations, points = await asyncio.gather(
                 get_recent_conversations(
                     collection_name=user_id
@@ -108,6 +110,8 @@ class ResponseManager:
                 )
             )
             context = rrf(points=points, n_points=3, payload=["text"])
+            print(recent_conversations)
+            print(context)
             rag_responder = model_manager.get_model("rag_responder")
             stream_predict = cls._create_stream_predict(rag_responder)
             output_stream = stream_predict(context=context, prompt=input_data.content, image=input_data.image, recent_conversations=recent_conversations)
@@ -131,17 +135,18 @@ class ResponseManager:
             Exception: If summarization fails.
         """
         try:
+            llm_responder = model_manager.get_model("llm_responder")
             summarizer = model_manager.get_model("summarizer")
-
-            image_data = input_data.image
-            if isinstance(image_data, (bytes, bytearray)):
-                image = convert_to_dspy_image(image_data=image_data)
-            elif isinstance(image_data, str) and image_data.lower() not in ["", "string", "none"]:
-                image = convert_to_dspy_image(image_data=image_data)
+            
+            
+            if input_data.image and not input_data.content:
+                image = convert_to_dspy_image(input_data.image) if input_data.image else None
+                response = await llm_responder.forward(image=image)
+                summarized_context = await summarizer.forward(input=response)
             else:
-                image = None
+                prompt = input_data.content
+                summarized_context = await summarizer.forward(input=prompt)
 
-            summarized_context = await summarizer.forward(image=image, prompt=input_data.content)
             return summarized_context
 
         except Exception as e:

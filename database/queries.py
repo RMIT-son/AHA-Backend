@@ -95,6 +95,7 @@ async def add_message(convo_id: str, message: Message, response: str):
     Returns:
         None
     """
+    message.content = "" if not message.content else message.content
     msg = {
         "sender": "user",
         "content": message.content,

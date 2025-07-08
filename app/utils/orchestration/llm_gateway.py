@@ -1,8 +1,5 @@
-import os
 import dspy
-from dotenv import load_dotenv
-
-load_dotenv()
+from database.redis_client import get_config
 
 def set_lm_configure(config: dict = None):
     """
@@ -22,12 +19,13 @@ def set_lm_configure(config: dict = None):
         KeyError: If the "model" key is missing from the config dictionary.
         EnvironmentError: If required environment variables are not set.
     """
+    api_keys = get_config("api_keys")
     lm = dspy.LM(
             model=config["model"],
-            base_url=os.getenv("OPEN_ROUTER_URL"),
-            api_key=os.getenv("OPEN_ROUTER_API_KEY"),
-            cache=True,
-            cache_in_memory=True,
+            base_url=api_keys["OPEN_ROUTER_URL"],
+            api_key=api_keys["OPEN_ROUTER_API_KEY"],
+            cache=False,
+            cache_in_memory=False,
             track_usage=True,
         )
     return lm

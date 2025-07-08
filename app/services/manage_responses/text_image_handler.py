@@ -24,7 +24,6 @@ class TextImageHandler(TextHandler, ImageHandler):
         Raises:
             Exception: If classification or routing fails.
         """
-        start_time = time.time()
         try:
             # Run text and image classification in parallel
             text_task = cls._classify_text(input_data)
@@ -33,7 +32,6 @@ class TextImageHandler(TextHandler, ImageHandler):
             text_result, image_result = await asyncio.gather(text_task, image_task)
             
             print(f"Text classification: {text_result}, Image classification: {image_result}")
-            cls._log_execution_time(start_time, "Text+Image Classification")
             
             # Route based on classification
             return await cls._route_text_image_response(
@@ -80,7 +78,8 @@ class TextImageHandler(TextHandler, ImageHandler):
                 
                 if image_is_medical:
                     # Process medical image
-                    input_data.image = image_result
+                    classifier = await cls.get_classifier()
+                    input_data.image = await classifier.classify_disease(image=input_data.image)
                 else:
                     # Convert non-medical image
                     input_data.image = convert_to_dspy_image(image_data=input_data.image)

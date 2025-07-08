@@ -1,6 +1,6 @@
 import dspy
 import asyncio
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from database.schemas import (
     Message, 
@@ -9,7 +9,7 @@ from database.schemas import (
 )
 from database.queries import (
     create_conversation, get_all_conversations,
-    get_conversation_by_id, add_message, delete_conversation_by_id, 
+    get_conversation_by_id, add_message, delete_conversation_by_id,
     update_conversation_title
 )
 from app.utils import build_error_response
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/conversations", tags=["Conversations"])
 
 # Endpoint to create a new conversation for a given user
 @router.post("/create/{user_id}", response_model=Conversation)
-async def create_conversation_by_user_id(user_id: str, message: Message):
+async def create_conversation_by_user_id(user_id: str, request: Request):
     """
     Create a new conversation for a given user.
 
@@ -39,12 +39,21 @@ async def create_conversation_by_user_id(user_id: str, message: Message):
                 400
             )
         
-        if not message or not message.content:
-            return build_error_response(
-                "INVALID_INPUT",
-                "Message content is required",
-                400
-            )
+        body = await request.json()
+        image_data = None
+        content = None
+        
+        if "content" in body and isinstance(body["content"], str) and body["content"]:
+            content = body.get("content")
+            
+        if "files" in body and isinstance(body["files"], list) and body["files"]:
+            image_data = body["files"][0].get("data")
+            
+        message = Message(
+            content=content,
+            image=image_data,
+            timestamp=body.get("timestamp")
+        )
         
         title = await ResponseManager.summarize(message)
         result = create_conversation(user_id=user_id, title=title)
@@ -233,7 +242,7 @@ async def rename_conversation(conversation_id: str, request: UpdateConversationR
 
 
 @router.post("/{conversation_id}/{user_id}/stream")
-async def stream_message(conversation_id: str, user_id: str, message: Message):
+async def stream_message(conversation_id: str, user_id: str, request: Request):
     """
     Stream a response to a user's message (text, image, or both) and update the conversation.
 
@@ -252,6 +261,22 @@ async def stream_message(conversation_id: str, user_id: str, message: Message):
                 "Conversation ID and user ID are required",
                 400
             )
+        
+        body = await request.json()
+        image_data = None
+        content = None
+        
+        if "content" in body and isinstance(body["content"], str) and body["content"]:
+            content = body.get("content")
+            
+        if "files" in body and isinstance(body["files"], list) and body["files"]:
+            image_data = body["files"][0].get("data")
+            
+        message = Message(
+            content=content,
+            image=image_data,
+            timestamp=body.get("timestamp")
+        )
         
         if not message:
             return build_error_response(
@@ -275,7 +300,7 @@ async def stream_message(conversation_id: str, user_id: str, message: Message):
                     output_stream = await handler.handle_text_response(input_data=message, user_id=user_id)
                 elif message.image and not message.content:
                     handler = ImageHandler()
-                    output_stream = await handler.handle_image_response(input_data=message)
+                    output_stream = await handler.handle_image_response(input_data=message, user_id=user_id)
                 elif message.content and message.image:
                     handler = TextImageHandler()
                     output_stream = await handler.handle_text_image_response(input_data=message, user_id=user_id)
