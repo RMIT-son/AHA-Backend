@@ -2,13 +2,25 @@ import os
 import uuid
 import filetype
 from google.cloud import storage
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Set your bucket name and credentials
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "database/service-account-key.json"
-BUCKET_NAME = "aha-db"
+BUCKET_NAME = os.getenv("BUCKET_NAME")
 
 def upload_file_to_gcs(file_bytes: bytes) -> str:
-    """Uploads file to appropriate folder in GCS and returns its GCS URL."""
+    """
+    Uploads file to appropriate folder in GCS and returns its GCS URL.
+    
+    Args:
+        file_bytes (bytes): The content of the file to upload.
+    Returns:
+        str: The GCS URL of the uploaded file.
+    Raises:
+        ValueError: If the file type is unsupported or unknown.
+    """
 
     # Infer content type and extension
     kind = filetype.guess(file_bytes)
