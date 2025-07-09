@@ -1,7 +1,7 @@
 import dspy
 from typing import Dict, Any
+from app.api.database.redis_client import get_config
 from app.models import RAG, LLM, Classifier, Summarizer
-from database.redis_client import get_config
 from app.utils.orchestration.llm_gateway import set_lm_configure
 from app.utils import (
     get_dense_embedder, 

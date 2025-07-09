@@ -2,13 +2,13 @@ import time
 import dspy
 import asyncio
 from rich import print
-from database import Message
+from app.schemas.message import Message
 from app.utils.text_processing import rrf
-from database.qdrant_client import hybrid_search
+from app.api.database import call_hybrid_search
 from typing import Any, AsyncGenerator, Awaitable
+from app.api.database import get_recent_conversations
 from ..manage_models.model_manager import model_manager
 from app.utils.image_processing import convert_to_dspy_image
-from database.qdrant_client import get_recent_conversations
 
 class ResponseManager:
     """Base handler for different types of response generation."""
@@ -103,15 +103,15 @@ class ResponseManager:
                 get_recent_conversations(
                     collection_name=user_id
                 ),
-                hybrid_search(
+                call_hybrid_search(
                     query=prompt,
                     collection_name=collection_name,
                     limit=4
                 )
             )
             context = rrf(points=points, n_points=3, payload=["text"])
-            print(recent_conversations)
             print(context)
+            print(recent_conversations)
             rag_responder = model_manager.get_model("rag_responder")
             stream_predict = cls._create_stream_predict(rag_responder)
             output_stream = stream_predict(context=context, prompt=input_data.content, image=input_data.image, recent_conversations=recent_conversations)

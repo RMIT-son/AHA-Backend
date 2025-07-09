@@ -1,8 +1,8 @@
 from fastapi import FastAPI
-from app.api.routes import conversation, auth
+from app.api.routes import conversation
 from contextlib import asynccontextmanager
-from app.services.manage_models.model_manager import model_manager
 from fastapi.middleware.cors import CORSMiddleware
+from app.services.manage_models.model_manager import model_manager
 
 @asynccontextmanager
 async def lifespan(app):
@@ -27,9 +27,6 @@ async def lifespan(app):
         # Load models immediately (fast)
         model_manager.load_models()
 
-        # Warm up models asynchronously in background
-        # model_manager.warmup_models()
-
         print("Application startup completed successfully!")
         yield
 
@@ -53,4 +50,3 @@ app.add_middleware(
 )
 
 app.include_router(conversation.router)
-app.include_router(auth.router)

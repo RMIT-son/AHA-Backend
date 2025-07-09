@@ -1,5 +1,7 @@
-from fastapi.responses import JSONResponse
+import io
+import base64
 from datetime import datetime
+from fastapi.responses import JSONResponse
 
 def create_signature_with_doc(base_cls, docstring: str):
     """
@@ -68,3 +70,22 @@ def serialize_mongo_document(doc):
         doc["id"] = str(doc["_id"])  # Replace MongoDB's _id with stringified id
         del doc["_id"]
     return doc
+
+def serialize_image(image) -> str:
+    """Convert PIL Image to base64 string for JSON serialization."""
+    if image is None:
+        return None
+    
+    if isinstance(image, str):
+        return image
+    
+    if hasattr(image, 'save'):
+        buffer = io.BytesIO()
+        image.save(buffer, format='PNG')
+        image_data = buffer.getvalue()
+        return base64.b64encode(image_data).decode('utf-8')
+    
+    if isinstance(image, bytes):
+        return base64.b64encode(image).decode('utf-8')
+    
+    return None

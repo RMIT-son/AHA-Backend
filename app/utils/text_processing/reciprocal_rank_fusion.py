@@ -66,7 +66,7 @@ def rrf(points: list[types.QueryResponse] = None, n_points: int = None, payload:
                 payload_content = [f"Context {idx}: {doc.payload.get(key, '')}" for key in payload]
                 context_chunks.append("\n".join(payload_content))
             
-            return "\n\n---------------------------\n\n".join(context_chunks)
+            return "\n\n------------------------------------------------------------------\n\n".join(context_chunks)
             
         except Exception as e:
             print("[RRF Exception Traceback]")

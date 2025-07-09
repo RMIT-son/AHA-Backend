@@ -1,5 +1,5 @@
 import dspy
-from database.redis_client import get_config
+from app.api.database.redis_client import get_config
 
 def set_lm_configure(config: dict = None):
     """
