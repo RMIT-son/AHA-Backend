@@ -2,12 +2,15 @@
 import httpx
 from app.schemas.message import Message
 from app.utils.common import serialize_image
+from .redis_client import get_config
 from qdrant_client.conversions import common_types as types
+
+DATA_URL = get_config("api_keys")["DATA_URL"]
 
 async def get_recent_conversations(
     collection_name: str,
     limit: int = 50,
-    base_url: str = "http://localhost:8000"
+    base_url: str = DATA_URL
 ) -> str:
     """
     Calls the /recent_conversations endpoint and returns the conversation string.
@@ -41,7 +44,7 @@ async def call_add_message_endpoint(conversation_id: str, message: Message, resp
     Call the add_message endpoint via HTTP request.
     """
     try:
-        base_url = "http://localhost:8000"
+        base_url = DATA_URL
         
         # Serialize the image if it exists
         serialized_image = serialize_image(message.image)
@@ -68,7 +71,7 @@ async def call_hybrid_search(
     query: str,
     collection_name: str,
     limit: int,
-    base_url: str = "http://localhost:8000"
+    base_url: str = DATA_URL
 ) -> list[types.QueryResponse]:
     """
     Calls the hybrid_search endpoint and returns parsed Qdrant QueryResponses.
@@ -108,7 +111,7 @@ async def call_hybrid_search(
     
 async def get_config(
     name: str,
-    base_url: str = "http://localhost:8000"
+    base_url: str = DATA_URL
 ) -> dict:
     """
     Calls the /get_config endpoint to retrieve configuration from Redis.

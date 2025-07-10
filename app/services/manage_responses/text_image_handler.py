@@ -24,71 +24,11 @@ class TextImageHandler(TextHandler, ImageHandler):
             Exception: If classification or routing fails.
         """
         try:
-            # Run text and image classification in parallel
-            text_task = cls._classify_text(input_data)
-            image_task = cls._classify_image(input_data)
-            
-            text_result, image_result = await asyncio.gather(text_task, image_task)
-            
-            print(f"Text classification: {text_result}, Image classification: {image_result}")
+            input_data.image = convert_to_dspy_image(input_data.image)
             
             # Route based on classification
-            return await cls._route_text_image_response(
-                input_data=input_data, 
-                text_result=text_result, 
-                image_result=image_result,
-                user_id=user_id
-            )
+            return await cls.handle_text_response(input_data=input_data, user_id=user_id)
 
         except Exception as e:
             print(f"Text+Image response handling failed: {str(e)}")
             raise Exception(f"Text+Image response failed: {str(e)}")
-
-
-    @classmethod
-    async def _route_text_image_response(cls, input_data: Message = None, text_result: str = None, image_result: str = None, user_id: str = None) -> AsyncGenerator[str, None]:
-        """
-        Route a combined text+image message based on whether either modality is medically relevant.
-
-        - If either text or image is medical-related, use RAG with classification result as collection name.
-        - If both are not medical-related, use general-purpose LLM.
-        - Medical images are passed as disease descriptions; non-medical images are converted to DSPy-compatible format.
-
-        Args:
-            input_data (Message): The user's combined input.
-            text_result (str): Classification result for the text input.
-            image_result (str): Classification result for the image input.
-            user_id (str): The user ID for retrieving contextual history.
-
-        Yields:
-            AsyncGenerator[str, None]: Streamed response tokens from the selected model.
-
-        Raises:
-            Exception: If routing logic fails.
-        """
-        try:
-            text_is_medical = text_result != "not-medical-related"
-            image_is_medical = image_result != "not-medical-related"
-            
-            if text_is_medical or image_is_medical:
-                # At least one is medical - use RAG
-                # Prioritize text classification for collection name
-                collection_name = text_result if text_is_medical else image_result
-                
-                if image_is_medical:
-                    # Process medical image
-                    classifier = await cls.get_classifier()
-                    input_data.image = await classifier.classify_disease(image=input_data.image)
-                else:
-                    # Convert non-medical image
-                    input_data.image = convert_to_dspy_image(image_data=input_data.image)
-                
-                return await cls.handle_rag_response(input_data=input_data, collection_name=collection_name, user_id=user_id)
-            else:
-                # Both non-medical - use general LLM
-                input_data.image = convert_to_dspy_image(image_data=input_data.image)
-                return await cls.handle_llm_response(input_data=input_data, user_id=user_id)
-                
-        except Exception as e:
-            print(f"Text+Image response routing failed: {str(e)}")
-            raise Exception(f"Text+Image response routing failed: {str(e)}")

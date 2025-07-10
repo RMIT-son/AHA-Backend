@@ -67,7 +67,6 @@ class ResponseManager:
             recent_conversations = await get_recent_conversations(
                 collection_name=user_id
             )
-            print(recent_conversations)
             llm_responder = model_manager.get_model("llm_responder")
             stream_predict = cls._create_stream_predict(llm_responder)
             output_stream = stream_predict(prompt=input_data.content, image=input_data.image, recent_conversations=recent_conversations)
@@ -94,24 +93,18 @@ class ResponseManager:
         """
         start_time = time.time()
         try:
-            text_content = input_data.content or ""
-            image_desc = input_data.image or ""
 
-            prompt = f"{text_content}\n\n{image_desc}".strip() 
-            print(prompt)
             recent_conversations, points = await asyncio.gather(
                 get_recent_conversations(
                     collection_name=user_id
                 ),
                 call_hybrid_search(
-                    query=prompt,
+                    query=input_data.content,
                     collection_name=collection_name,
                     limit=4
                 )
             )
             context = rrf(points=points, n_points=3, payload=["text"])
-            print(context)
-            print(recent_conversations)
             rag_responder = model_manager.get_model("rag_responder")
             stream_predict = cls._create_stream_predict(rag_responder)
             output_stream = stream_predict(context=context, prompt=input_data.content, image=input_data.image, recent_conversations=recent_conversations)
