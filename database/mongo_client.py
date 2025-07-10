@@ -4,12 +4,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Debug: Print the connection string (remove this after testing)
-print("MONGO_DB_URL:", os.getenv("MONGO_DB_URL"))
-
 client = MongoClient(os.getenv("MONGO_DB_URL"))
 db = client["AHA"]
 conversation_collection = db["conversations"]
+user_collection = db["users"]
 
 # Test connection
 try:

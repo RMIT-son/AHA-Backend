@@ -1,0 +1,35 @@
+# Core Libraries
+openai
+python-dotenv
+requests
+pydantic
+# FastAPI & Web Server
+fastapi[standard]
+uvicorn
+# LLM & LangChain Ecosystem
+langchain
+langchain_community
+langchain_text_splitters
+langchain_huggingface
+langchain-openai
+dspy
+# Document Handling
+pypdf
+unstructured
+unstructured[pdf]
+googletrans
+# Embedding & Vector Stores
+sentence_transformers
+fastembed
+qdrant_client
+# Evaluation & Datasets
+ragas
+datasets
+ranx
+# Databases
+pymongo
+redis
+boto3
+# Image ZSIC
+# Note: The following packages are for zero-shot image classification
+git+https://github.com/openai/CLIP.git

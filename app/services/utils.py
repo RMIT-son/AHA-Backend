@@ -3,16 +3,19 @@ import uuid
 from math import ceil
 from rich import print
 from dotenv import load_dotenv
-from qdrant_client import models
-from qdrant_client.http.exceptions import UnexpectedResponse
-from database.qdrant_client import qdrant_client
-from sentence_transformers import SentenceTransformer
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader, TextLoader
-from modules.text_processing.embedders import compute_dense_vector, compute_sparse_vector
 from rich.progress import track
+from qdrant_client import models
+from database.qdrant_client import qdrant_client
+from qdrant_client.http.exceptions import UnexpectedResponse
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from app.modules import compute_dense_vector, compute_sparse_vector
+from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader, TextLoader
 
 load_dotenv()
+
+def create_signature_with_doc(base_cls, docstring: str):
+    """Dynamically create a new class inheriting from base_cls with a custom docstring."""
+    return type(base_cls.__name__, (base_cls,), {"__doc__": docstring})
 
 def load_documents(folder_path):
     if not os.path.exists(folder_path):
@@ -40,8 +43,7 @@ def load_documents(folder_path):
 
     return all_docs
 
-
-def split_documents(documents, chunk_size=100, chunk_overlap=20):
+def split_documents(documents, chunk_size=512, chunk_overlap=50):
     splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     all_chunks = []
 
@@ -56,10 +58,8 @@ def split_documents(documents, chunk_size=100, chunk_overlap=20):
 
     return all_chunks
 
-
-
 async def ensure_collection(collection_name):
-    if not qdrant_client.collection_exists(collection_name=collection_name):
+    if not await qdrant_client.collection_exists(collection_name=collection_name):
         print(f"[yellow]Creating collection: {collection_name}...[/yellow]")
         await qdrant_client.create_collection(
             collection_name=collection_name,
@@ -75,7 +75,6 @@ async def ensure_collection(collection_name):
         print(f"[green]Collection '{collection_name}' created successfully.[/green]")
     else:
         print(f"[cyan]Collection '{collection_name}' already exists.[/cyan]")
-
 
 def embed_chunks(chunks):
     points = []
@@ -122,8 +121,6 @@ async def ingest_points(collection_name, points, batch_size=100):
             print(f"[red]✗ ERROR inserting batch {batch_num}: {e}[/red]")
 
     print(f"[green]Ingestion complete: {successful_batches}/{total_batches} batches[/green]")
-
-
 
 async def verify_collection(collection_name):
     try:

@@ -1,13 +1,13 @@
+import dspy
 from typing import Dict, Any
+from app.models import RAG, LLM, Classifier
 from database.redis_client import get_config
-from modules.llm_modules import RAG, LLM, Classifier
-from modules.orchestration.llm_gateway import set_lm_configure, dspy
-from modules.text_processing.embedders import (
+from app.modules.orchestration.llm_gateway import set_lm_configure
+from app.modules import (
     get_dense_embedder, 
     get_sparse_embedder_and_tokenizer
 )
-from services.model_warmup import warmup_all_models
-
+from .model_warmup import warmup_all_models
 
 class ModelManager:
     """Manages the lifecycle of ML models."""
@@ -26,6 +26,7 @@ class ModelManager:
         # Initialize LLM models
         self.models["llm_responder"] = LLM(config=get_config("llm"))
         self.models["rag_responder"] = RAG(config=get_config("rag"))
+        self.models["summarizer"] = LLM(config=get_config("summarizer"))
         self.models["classifier"] = Classifier(config=get_config("task_classifier"))
         
         # Load embedding models
@@ -34,9 +35,9 @@ class ModelManager:
         
         print("All models loaded successfully!")
     
-    def warmup_models(self) -> None:
+    async def warmup_models(self) -> None:
         """Warm up all models with dummy inference."""
-        warmup_all_models(self.models)
+        await warmup_all_models(self.models)
     
     def get_model(self, model_name: str) -> Any:
         """Get a specific model by name."""
