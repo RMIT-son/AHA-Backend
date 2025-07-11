@@ -1,13 +1,15 @@
+*.env
+*.env.*
+env.*
 venv/
-.env
-requirements.txt
+.venv/
 *.pyc
 tests/
-models/
-# Python virtual environment
-
-# Byte-compiled / optimized / DLL files
+huggingface_models/
+zero_shot_image_classification/
+*.yaml
+.dockerignore
+Dockerfile
 __pycache__/
 *.py[cod]
 *$py.class
-evaluation_20_qa.csv

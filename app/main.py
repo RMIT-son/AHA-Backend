@@ -1,40 +1,52 @@
 from fastapi import FastAPI
+from app.api.routes import conversation
+from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
-import os
-from api.supervisor import router, lifespan
-from api.routes import conversation
+from app.services.manage_models.model_manager import model_manager
+
+@asynccontextmanager
+async def lifespan(app):
+    """
+    Application lifespan manager for model initialization and cleanup.
+
+    This function is registered with FastAPI's `lifespan` parameter to handle:
+    - Loading required models at startup.
+    - Warming up models asynchronously in the background.
+    - Cleaning up models on application shutdown.
+
+    Args:
+        app (FastAPI): The FastAPI application instance.
+
+    Yields:
+        None: Control is yielded back to FastAPI once startup is complete.
+
+    Raises:
+        Exception: If any error occurs during model loading or warmup, it is printed and re-raised.
+    """
+    try:
+        # Load models immediately (fast)
+        model_manager.load_models()
+
+        print("Application startup completed successfully!")
+        yield
+
+    except Exception as e:
+        print(f"Error during startup: {e}")
+        raise
+    finally:
+        # Clean up models on shutdown
+        model_manager.cleanup_models()
+        print("Application shutdown completed successfully!")
 
 app = FastAPI(lifespan=lifespan)
 
 # === CORS Configuration for Local Frontend Access ===
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(router)
 app.include_router(conversation.router)
-
-@app.get("/")
-def read_root():
-    return {"message": "Hello from FastAPI on Cloud Run!"}
-
-if __name__ == "__main__":
-    import uvicorn
-    import os
-    import traceback
-
-    try:
-        port = int(os.environ.get("PORT", 8080))
-        print(f"🚀 Starting FastAPI on port {port}")
-        uvicorn.run("app.main:app", host="0.0.0.0", port=port)
-    except Exception as e:
-        print("❌ Failed to start FastAPI")
-        traceback.print_exc()
