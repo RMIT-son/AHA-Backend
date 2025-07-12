@@ -6,6 +6,7 @@ class LLMResponse(dspy.Signature):
     recent_conversations: Optional[str] = dspy.InputField(optional=True, description="Recent conversations")
     prompt: str = dspy.InputField()
     image: Optional[Union[str, dspy.Image]] = dspy.InputField(optional=True, description="Image from user")
+    audio: Optional[dspy.Audio] = dspy.InputField(optional=True, description="Audio data from user")
     response: str = dspy.OutputField()
 
 class LLM(dspy.Module):
