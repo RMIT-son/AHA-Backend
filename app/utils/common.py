@@ -74,7 +74,6 @@ def serialize_mongo_document(doc):
 
 def serialize_image(image) -> str:
     """Convert various image types to base64 string for JSON serialization."""
-    print(f"Serialize_image received type: {type(image)}")
 
     if image is None:
         return None
@@ -100,21 +99,4 @@ def serialize_image(image) -> str:
             return match.group(1) if match else None
         return image.url
 
-    print("Unhandled image type in serialize_image")
-    return None 
-    if image is None:
-        return None
-    
-    if isinstance(image, str):
-        return image
-    
-    if hasattr(image, 'save'):
-        buffer = io.BytesIO()
-        image.save(buffer, format='PNG')
-        image_data = buffer.getvalue()
-        return base64.b64encode(image_data).decode('utf-8')
-    
-    if isinstance(image, bytes):
-        return base64.b64encode(image).decode('utf-8')
-    
     return None
