@@ -1,9 +1,9 @@
 import time
 import asyncio
 from rich import print
-from app.schemas.message import Message
 from typing import AsyncGenerator
 from googletrans import Translator
+from app.schemas.message import Message
 from .response_manager import ResponseManager
 
 class TextHandler(ResponseManager):
