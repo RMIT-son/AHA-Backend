@@ -10,7 +10,7 @@ class LLMResponse(dspy.Signature):
 
 class LLM(dspy.Module):
     """Model to generate general LLM responses."""
-    predictor_cls = dspy.Predict
+    predictor_cls = dspy.ChainOfThought
 
     def __init__(self, config: dict = None):
         self.model = config["model"]

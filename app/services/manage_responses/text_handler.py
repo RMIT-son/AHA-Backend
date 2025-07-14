@@ -88,7 +88,7 @@ class TextHandler(ResponseManager):
             Exception: If the response routing logic fails.
         """
         try:
-            is_medical = text_result != "not related to medical"
+            is_medical = text_result != "not related to medical" and text_result != "code"
             
             if is_medical:
                 # Medical text - use RAG
