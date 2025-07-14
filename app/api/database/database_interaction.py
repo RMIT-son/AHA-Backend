@@ -108,34 +108,3 @@ async def call_hybrid_search(
     except Exception as e:
         print(f"[Hybrid Search Error] {e}")
         raise
-    
-async def get_config(
-    name: str,
-    base_url: str = DATA_URL
-) -> dict:
-    """
-    Calls the /get_config endpoint to retrieve configuration from Redis.
-
-    Args:
-        name (str): The name of the config to retrieve.
-        base_url (str): Base URL of the FastAPI server.
-
-    Returns:
-        dict: Configuration data if found, or an empty dict if not found or on error.
-    """
-    try:
-        async with httpx.AsyncClient(base_url=base_url, timeout=10.0) as client:
-            response = await client.get(
-                "/api/model_query/get_config",
-                params={"name": name}
-            )
-
-        if response.status_code != 200:
-            print(f"[Config Error] {response.status_code}: {response.text}")
-            return {}
-
-        return response.json()
-
-    except Exception as e:
-        print(f"[Client Error] Failed to fetch config '{name}': {e}")
-        return {}

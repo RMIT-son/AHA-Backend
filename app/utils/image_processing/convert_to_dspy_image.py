@@ -25,13 +25,22 @@ def convert_to_dspy_image(image_data: Union[str, bytes, PILImage.Image, io.Bytes
         # First, get the image as PIL Image for processing
         pil_image = _convert_to_pil(image_data)
         
+        # Convert RGBA to RGB if necessary
+        if pil_image.mode in ('RGBA', 'LA', 'P'):
+            # Create a white background for transparency
+            rgb_image = PILImage.new('RGB', pil_image.size, (255, 255, 255))
+            if pil_image.mode == 'P':
+                pil_image = pil_image.convert('RGBA')
+            rgb_image.paste(pil_image, mask=pil_image.split()[-1] if pil_image.mode in ('RGBA', 'LA') else None)
+            pil_image = rgb_image
+        
         # Close the file descriptor before saving
         if temp_fd is not None:
             os.close(temp_fd)
             temp_fd = None
             
         # Save image to temp file
-        pil_image.save(temp_path, format='JPEG')
+        pil_image.save(temp_path, format='JPEG', quality=95)
         
         # Load with dspy
         dspy_image = Image.from_file(temp_path)
