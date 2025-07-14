@@ -1,6 +1,6 @@
 import asyncio
 from transformers import pipeline
-from .zero_shot_image_classifier import ZeroShotImageClassification
+
 
 class Classifier:
     """Classifier for text, general images, and disease-related images using zero-shot models."""
@@ -11,11 +11,6 @@ class Classifier:
         self.zero_shot_text_classification = pipeline(
             "zero-shot-classification", 
             model="facebook/bart-large-mnli"
-        )
-        self.zero_shot_image_classification = ZeroShotImageClassification()
-        self.zero_shot_disease_classification = pipeline(
-            "image-classification",
-            model="krzonkalla/Detector_de_Cancer_de_Pele"
         )
 
     async def classify_text(self, prompt: str = None) -> str:

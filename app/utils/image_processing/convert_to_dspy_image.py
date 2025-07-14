@@ -8,7 +8,7 @@ from pathlib import Path
 from PIL import Image as PILImage
 from typing import Union
 
-def convert_to_dspy_image(image_data: Union[str, bytes, PILImage.Image, io.BytesIO] = None) -> Image:
+async def convert_to_dspy_image(image_data: Union[str, bytes, PILImage.Image, io.BytesIO] = None) -> Image:
     """
     Convert various image data types to dspy Image
     

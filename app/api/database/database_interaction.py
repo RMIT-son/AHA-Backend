@@ -1,8 +1,8 @@
 
 import httpx
+from .redis_client import get_config
 from app.schemas.message import Message
 from app.utils.common import serialize_image
-from .redis_client import get_config
 from qdrant_client.conversions import common_types as types
 
 DATA_URL = get_config("api_keys")["DATA_URL"]

@@ -131,7 +131,6 @@ class ResponseManager:
             llm_responder = model_manager.get_model("llm_responder")
             summarizer = model_manager.get_model("summarizer")
             
-            
             if input_data.image and not input_data.content:
                 image = convert_to_dspy_image(input_data.image) if input_data.image else None
                 response = await llm_responder.forward(image=image)
