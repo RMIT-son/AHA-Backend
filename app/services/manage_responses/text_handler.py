@@ -93,6 +93,9 @@ class TextHandler(ResponseManager):
             if is_medical:
                 # Medical text - use RAG
                 return await cls.handle_rag_response(input_data=input_data, collection_name=text_result, user_id=user_id)
+            elif text_result == "code":
+                # Code-related text - use LLM responder
+                return await cls.handle_llm_response(input_data=input_data, user_id=user_id)
             else:
                 # Non-medical text - use general LLM
                 return await cls.handle_llm_response(input_data=input_data, user_id=user_id)
