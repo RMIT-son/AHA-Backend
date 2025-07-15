@@ -22,7 +22,7 @@ class ImageHandler(ResponseManager):
             Exception: If classification or routing fails.
         """
         try:
-            input_data.image = convert_to_dspy_image(input_data.image)
+            input_data.image = await convert_to_dspy_image(input_data.image)
             return await cls.handle_llm_response(input_data=input_data, user_id=user_id)
         except Exception as e:
             print(f"Image response handling failed: {str(e)}")
