@@ -22,14 +22,12 @@ googletrans
 sentence_transformers
 fastembed
 qdrant_client
-# Evaluation & Datasets
-ragas
-datasets
-ranx
+
 # Databases
 pymongo
 redis
 boto3
+bcrypt
 # Image ZSIC
 # Note: The following packages are for zero-shot image classification
 git+https://github.com/openai/CLIP.git

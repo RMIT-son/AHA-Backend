@@ -1,19 +1,31 @@
 from fastapi import FastAPI
-from app.api.routes import conversation, auth
+from app.api.routes import conversation
 from contextlib import asynccontextmanager
-from app.services.manage_models.model_manager import model_manager
 from fastapi.middleware.cors import CORSMiddleware
-import asyncio
+from app.services.manage_models.model_manager import model_manager
 
 @asynccontextmanager
 async def lifespan(app):
-    """Application lifespan manager for model loading and cleanup."""
+    """
+    Application lifespan manager for model initialization and cleanup.
+
+    This function is registered with FastAPI's `lifespan` parameter to handle:
+    - Loading required models at startup.
+    - Warming up models asynchronously in the background.
+    - Cleaning up models on application shutdown.
+
+    Args:
+        app (FastAPI): The FastAPI application instance.
+
+    Yields:
+        None: Control is yielded back to FastAPI once startup is complete.
+
+    Raises:
+        Exception: If any error occurs during model loading or warmup, it is printed and re-raised.
+    """
     try:
         # Load models immediately (fast)
         model_manager.load_models()
-
-        # Warm up models asynchronously in background
-        asyncio.create_task(model_manager.warmup_models())
 
         print("Application startup completed successfully!")
         yield
@@ -38,4 +50,3 @@ app.add_middleware(
 )
 
 app.include_router(conversation.router)
-app.include_router(auth.router)

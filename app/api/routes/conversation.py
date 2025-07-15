@@ -1,92 +1,138 @@
-import dspy
-import asyncio
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse, StreamingResponse
-from database.schemas import (
-    Message, 
-    Conversation,
-    UpdateConversationRequest
-)
-from database.queries import (
-    create_conversation, get_all_conversations,
-    get_conversation_by_id, add_message, delete_conversation_by_id, 
-    update_conversation_title
-)
-from app.services.manage_responses import TextHandler, ImageHandler, TextImageHandler, ResponseManager
+from app.schemas.message import Message
+from fastapi import APIRouter, Request 
+from app.utils import build_error_response
+from fastapi.responses import StreamingResponse, JSONResponse
+from app.utils.streaming import generate_response_stream
+from app.services.manage_responses import ResponseManager
 
 # Create a router with a common prefix and tag for all conversation-related endpoints
 router = APIRouter(prefix="/api/conversations", tags=["Conversations"])
 
-# Endpoint to create a new conversation for a given user
-@router.post("/create/{user_id}", response_model=Conversation)
-async def create_conversation_by_user_id(user_id: str, message: Message):
-    title = await ResponseManager.summarize(message)
-    result = create_conversation(user_id=user_id, title=title)
-    return result
+@router.post("/generate_title/{user_id}")
+async def generate_title(user_id: str, request: Request):
+    """
+    Generate a conversation title based on the user's initial message content or image.
 
-# Endpoint to retrieve all conversations stored in the database
-@router.get("/user/{user_id}", response_model=list[Conversation])
-def get_all_conversations_by_user_id(user_id: str):
-    conversations = get_all_conversations(user_id)
-    return conversations
+    This endpoint uses a summarization model to produce a short, descriptive title
+    for the beginning of a new conversation. It supports both text and image inputs.
 
-# Endpoint to retrieve a specific conversation by its ID
-@router.get("/chat/{conversation_id}", response_model=Conversation)
-def get_conversation(conversation_id: str):
-    convo = get_conversation_by_id(conversation_id)
-    if not convo:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    return convo
+    Args:
+        user_id (str): The ID of the user initiating the conversation.
+        request (Request): The incoming HTTP request containing the JSON body.
+            Expected fields in JSON:
+                - content (str, optional): User's text message.
+                - files (list, optional): List of files; expects base64-encoded image at files[0].data.
+                - timestamp (str, optional): Time the message was sent.
 
-@router.delete("/{conversation_id}/user/{user_id}")
-async def delete_conversation(conversation_id: str, user_id: str):
-    return await delete_conversation_by_id(conversation_id, user_id)
+    Returns:
+        JSONResponse: A JSON object with the generated title:
+            {
+                "title": "Short summary of message or image"
+            }
 
-# Endpoint to update conversation title (rename)
-@router.put("/{conversation_id}/rename", response_model=Conversation)
-async def rename_conversation(conversation_id: str, request: UpdateConversationRequest):
-    """Rename a conversation by updating its title"""
+    Error Responses:
+        - 400: If user ID is not provided or input is invalid.
+        - 500: If title generation fails due to internal error or model issues.
+    """
     try:
-        updated_convo = update_conversation_title(conversation_id, request.title)
-        if not updated_convo:
-            raise HTTPException(status_code=404, detail="Conversation not found or could not be updated")
-        return updated_convo
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error updating conversation: {str(e)}")
-
-@router.post("/{conversation_id}/{user_id}/stream", response_model=Conversation)
-async def stream_message(conversation_id: str, user_id: str, message: Message):
-    async def generate_response_stream():
-        try:
+        if not user_id:
+            return build_error_response(
+                "INVALID_INPUT",
+                "User ID is required",
+                400
+            )
+        
+        body = await request.json()
+        image_data = None
+        content = None
+        
+        if "content" in body and isinstance(body["content"], str) and body["content"]:
+            content = body.get("content")
             
-            # Determine which handler to use based on message content
-            if message.content and not message.image:
-                handler = TextHandler()
-                output_stream = await handler.handle_text_response(input_data=message, user_id=user_id)
-            elif message.image and not message.content:
-                handler = ImageHandler()
-                output_stream = await handler.handle_image_response(input_data=message)
-            elif message.content and message.image:
-                handler = TextImageHandler()
-                output_stream = await handler.handle_text_image_response(input_data=message, user_id=user_id)
-            else:
-                raise ValueError("Empty message content and image")
-            # Stream the output
-            async for chunk in output_stream:
-                if isinstance(chunk, dspy.streaming.StreamResponse):
-                    yield f"data: {chunk.chunk}\n\n"
-                elif isinstance(chunk, dspy.Prediction):
-                    yield "data: [DONE]\n\n"
-                    asyncio.create_task(
-                        add_message(convo_id=conversation_id, message=message, response=chunk.response)
-                    )
-        except Exception as e:
-            yield f"data: ERROR - {str(e)}\n\n"
-
-    try:
-        return StreamingResponse(
-            generate_response_stream(),
-            media_type="text/event-stream",
+        if "files" in body and isinstance(body["files"], list) and body["files"]:
+            image_data = body["files"][0].get("data")
+            
+        message = Message(
+            content=content,
+            image=image_data,
+            timestamp=body.get("timestamp")
         )
+        
+        title = await ResponseManager.summarize(message)
+        return JSONResponse(content={"title": title}, status_code=200)
     except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        return build_error_response(
+            "TITLE_GENERATION_FAILED",
+            f"Failed to generate title: {str(e)}",
+            500
+        )
+    
+@router.post("/{conversation_id}/{user_id}/stream")
+async def stream_message(conversation_id: str, user_id: str, request: Request):
+    """
+    Stream a response to a user's message (text, image, or both) and update the conversation.
+
+    Args:
+        conversation_id (str): The ID of the conversation to append the response to.
+        user_id (str): The ID of the user sending the message.
+        message (Message): The message object containing text and/or image.
+
+    Returns:
+        StreamingResponse: A streamed response via Server-Sent Events (SSE).
+    """
+    try:
+        if not conversation_id or not user_id:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Conversation ID and user ID are required",
+                400
+            )
+        
+        body = await request.json()
+        image_data = None
+        content = None
+        
+        if "content" in body and isinstance(body["content"], str) and body["content"]:
+            content = body.get("content")
+            
+        if "files" in body and isinstance(body["files"], list) and body["files"]:
+            image_data = body["files"][0].get("data")
+            
+        message = Message(
+            content=content,
+            image=image_data,
+            timestamp=body.get("timestamp")
+        )
+        
+        if not message:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Message is required",
+                400
+            )
+        
+        if not message.content and not message.image:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Message must contain either text content or image",
+                400
+            )
+
+        return StreamingResponse(
+            generate_response_stream(message=message, user_id=user_id, conversation_id=conversation_id),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Cache-Control"
+            }
+        )
+        
+    except Exception as e:
+        return build_error_response(
+            "STREAM_INITIALIZATION_FAILED",
+            f"Failed to initialize message stream: {str(e)}",
+            500
+        )
+
