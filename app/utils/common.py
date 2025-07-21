@@ -1,7 +1,16 @@
+import csv
 import io
 import re
 import base64
+from typing import List, Tuple, Optional
+from PyPDF2 import PdfReader
+from docx import Document
 from datetime import datetime
+
+from fastapi import HTTPException, UploadFile
+import httpx
+from app.api.database.database_interaction import DATA_URL
+from app.schemas.message import FileData, Message
 from fastapi.responses import JSONResponse
 
 def create_signature_with_doc(base_cls, docstring: str):
@@ -100,3 +109,123 @@ def serialize_image(image) -> str:
         return image.url
 
     return None
+
+def extract_text(file_data: FileData, content_bytes: bytes) -> Optional[str]:
+    """    Extract text content from various file types.    
+    Args:
+        file_data (FileData): Metadata about the file including its type.
+        content_bytes (bytes): The raw bytes of the file content.
+    Returns:
+        Optional[str]: Extracted text content, or None if extraction fails.
+    """
+    try:
+        # Plain text and markdown
+        if file_data.type in {"text/plain", "text/markdown"}:
+            return content_bytes.decode("utf-8", errors="ignore")
+
+        # CSV
+        elif file_data.type == "text/csv":
+            try:
+                decoded = content_bytes.decode("utf-8", errors="ignore")
+                reader = csv.reader(io.StringIO(decoded))
+                rows = [" | ".join(row) for row in reader]
+                return "\n".join(rows) if rows else None
+            except Exception as e:
+                print(f"Failed to parse CSV {file_data.name}: {e}")
+                return None
+
+        # PDF
+        elif file_data.type == "application/pdf":
+            reader = PdfReader(io.BytesIO(content_bytes))
+            if reader.is_encrypted:
+                raise ValueError(f"PDF file '{file_data.name}' is encrypted and cannot be processed.")
+            extracted = []
+            for page_num, page in enumerate(reader.pages):
+                try:
+                    text = page.extract_text()
+                    if text:
+                        extracted.append(text)
+                except Exception as e:
+                    print(f"Failed to extract text from page {page_num} in {file_data.name}: {e}")
+            return "\n".join(extracted) if extracted else None
+
+        # DOCX
+        elif file_data.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            doc = Document(io.BytesIO(content_bytes))
+            paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+            tables = []
+            for table in doc.tables:
+                for row in table.rows:
+                    cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                    if cells:
+                        tables.append(" | ".join(cells))
+            all_text = paragraphs + tables
+            return "\n".join(all_text) if all_text else None
+
+    except Exception as e:
+        print(f"Failed to extract text from {file_data.name}: {e}")
+        return None
+
+
+def classify_file(files: List[FileData]) -> Tuple[List[FileData], List[FileData]]:
+    """
+    Classify files into images and documents based on their MIME types.
+
+    Args:
+        files (List[FileData]): List of FileData objects to classify.
+
+    Returns:
+        Tuple[List[FileData], List[FileData]]: Two lists - one for image files, one for document files.
+    """
+    image_files = [f for f in files if f.type.startswith("image/")]
+    doc_files = [f for f in files if f.type in ("text/plain", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")]
+    return image_files, doc_files
+
+async def handle_file_processing(conversation_id: str, files: List[UploadFile]) -> Message:
+    """    Process uploaded files, extract text content, and return a structured message.
+    Args:
+        conversation_id (str): The ID of the conversation to associate with the files.
+        files (List[UploadFile]): List of files uploaded by the user.
+    Returns:
+        Message: A structured message containing the extracted text and file metadata.
+    """
+    # Read file contents and metadata
+    file_bytes_list = [await file.read() for file in files]
+    filenames = [file.filename for file in files]
+    mime_types = [file.content_type for file in files]
+
+    # Upload files
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            url=f"{DATA_URL}/api/conversations/upload_file",
+            params={"convo_id": conversation_id},
+            files=[("files", (file.filename, content)) for file, content in zip(files, file_bytes_list)]
+        )
+        response.raise_for_status()
+        gcs_urls = response.json().get("gcs_urls", [])
+
+    # Prepare FileData list
+    processed_files = [
+        FileData(name=name, type=mtype, url=url)
+        for name, mtype, url in zip(filenames, mime_types, gcs_urls)
+    ]
+
+    # Classify files
+    _, document_files = classify_file(processed_files)
+
+    # Extract text content
+    extracted_texts = [
+        extract_text(file, content)
+        for file, content in zip(processed_files, file_bytes_list)
+        if file in document_files
+    ]
+    extracted_texts = [text for text in extracted_texts if text]
+
+    # Combine content
+    combined_content = "\n\n".join(extracted_texts) if extracted_texts else None
+
+    return Message(
+        content=combined_content,
+        files=processed_files,
+        timestamp=datetime.utcnow()
+    )

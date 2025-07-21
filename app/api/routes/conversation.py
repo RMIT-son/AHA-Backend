@@ -1,9 +1,11 @@
-from app.schemas.message import Message
-from fastapi import APIRouter, Request 
-from app.utils import build_error_response
+from app.schemas.message import Message, FileData
+from fastapi import APIRouter, Request, UploadFile, File
+from app.utils import build_error_response, handle_file_processing
+from typing import List, Optional
 from fastapi.responses import StreamingResponse, JSONResponse
 from app.utils.streaming import generate_response_stream
 from app.services.manage_responses import ResponseManager
+import httpx
 
 # Create a router with a common prefix and tag for all conversation-related endpoints
 router = APIRouter(prefix="/api/conversations", tags=["Conversations"])
@@ -43,18 +45,18 @@ async def generate_title(user_id: str, request: Request):
             )
         
         body = await request.json()
-        image_data = None
+        files = None
         content = None
         
         if "content" in body and isinstance(body["content"], str) and body["content"]:
             content = body.get("content")
             
         if "files" in body and isinstance(body["files"], list) and body["files"]:
-            image_data = body["files"][0].get("data")
+            files = body.get("files", [])
             
         message = Message(
             content=content,
-            image=image_data,
+            files=[FileData(**f) for f in files] if files else None,
             timestamp=body.get("timestamp")
         )
         
@@ -89,18 +91,18 @@ async def stream_message(conversation_id: str, user_id: str, request: Request):
             )
         
         body = await request.json()
-        image_data = None
+        files = None
         content = None
         
         if "content" in body and isinstance(body["content"], str) and body["content"]:
             content = body.get("content")
             
         if "files" in body and isinstance(body["files"], list) and body["files"]:
-            image_data = body["files"][0].get("data")
+            files = body.get("files", [])
             
         message = Message(
             content=content,
-            image=image_data,
+            files=[FileData(**f) for f in files] if files else None,
             timestamp=body.get("timestamp")
         )
         
@@ -111,7 +113,7 @@ async def stream_message(conversation_id: str, user_id: str, request: Request):
                 400
             )
         
-        if not message.content and not message.image:
+        if not message.content and not message.files:
             return build_error_response(
                 "INVALID_INPUT",
                 "Message must contain either text content or image",
@@ -136,3 +138,29 @@ async def stream_message(conversation_id: str, user_id: str, request: Request):
             500
         )
 
+@router.post("/process_file")
+async def process_file(
+    conversation_id: str,
+    files: List[UploadFile] = File(...)
+):
+    """    Process uploaded files, extract text content, and return a structured message.
+    Args:
+        conversation_id (str): The ID of the conversation to associate with the files.
+        files (List[UploadFile]): List of files uploaded by the user.
+    Returns:
+        Message: A structured message containing the extracted text and file metadata.
+    """
+    try:
+        return await handle_file_processing(conversation_id, files)
+    except httpx.HTTPError as e:
+        return build_error_response(
+            code="GCS_UPLOAD_FAILED",
+            message=f"GCS upload failed: {str(e)}",
+            status=502
+        )
+    except Exception as e:
+        return build_error_response(
+            code="PROCESSING_ERROR",
+            message=f"Error processing files: {str(e)}",
+            status=500
+        )
