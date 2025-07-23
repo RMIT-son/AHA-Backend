@@ -8,8 +8,6 @@ from docx import Document
 from datetime import datetime
 
 from fastapi import HTTPException, UploadFile
-import httpx
-from app.api.database.database_interaction import DATA_URL
 from app.schemas.message import FileData, Message
 from fastapi.responses import JSONResponse
 
@@ -87,25 +85,30 @@ def serialize_image(image) -> str:
     if image is None:
         return None
 
+    if isinstance(image, list) and len(image) > 0:
+        image = image[0]
+
     if isinstance(image, str):
-        if image.startswith("data:"):
-            match = re.match(r"data:.*?;base64,(.*)", image)
-            return match.group(1) if match else None
-        return image
+        # Extract actual data:image/... if wrapped inside Image(url=...)
+        match_full = re.search(r"data:[^;]+;base64,[A-Za-z0-9+/=]+", image)
+        if match_full:
+            return match_full.group(0)  # return full data:image/... string
+
+        return image  # already normal string
 
     if isinstance(image, bytes):
-        return base64.b64encode(image).decode('utf-8')
+        return f"data:image/png;base64,{base64.b64encode(image).decode('utf-8')}"
 
     if hasattr(image, 'save'):  # PIL.Image.Image
         buffer = io.BytesIO()
         image.save(buffer, format='PNG')
-        return base64.b64encode(buffer.getvalue()).decode('utf-8')
+        return f"data:image/png;base64,{base64.b64encode(buffer.getvalue()).decode('utf-8')}"
 
-    # Extract from DSPy image object with a url field
+    # DSPy or similar object with url attribute
     if hasattr(image, 'url') and isinstance(image.url, str):
-        if image.url.startswith("data:"):
-            match = re.match(r"data:.*?;base64,(.*)", image.url)
-            return match.group(1) if match else None
+        match_full = re.search(r"data:[^;]+;base64,[A-Za-z0-9+/=]+", image.url)
+        if match_full:
+            return match_full.group(0)
         return image.url
 
     return None
@@ -181,48 +184,53 @@ def classify_file(files: List[FileData]) -> Tuple[List[FileData], List[FileData]
     doc_files = [f for f in files if f.type in ("text/plain", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")]
     return image_files, doc_files
 
-async def handle_file_processing(conversation_id: str, files: List[UploadFile]) -> Message:
-    """    Process uploaded files, extract text content, and return a structured message.
+async def handle_file_processing(content: str, files: List[UploadFile]) -> Message:
+    """
+    Process uploaded files, extract text content, and return a structured message.
+
     Args:
         conversation_id (str): The ID of the conversation to associate with the files.
+        content (str): Additional content provided by the user.
         files (List[UploadFile]): List of files uploaded by the user.
+
     Returns:
         Message: A structured message containing the extracted text and file metadata.
     """
+    if not files:  # No files provided
+        return Message(
+            content=content,
+            files=[],
+            timestamp=datetime.utcnow()
+        )
+
     # Read file contents and metadata
     file_bytes_list = [await file.read() for file in files]
     filenames = [file.filename for file in files]
     mime_types = [file.content_type for file in files]
 
-    # Upload files
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            url=f"{DATA_URL}/api/conversations/upload_file",
-            params={"convo_id": conversation_id},
-            files=[("files", (file.filename, content)) for file, content in zip(files, file_bytes_list)]
-        )
-        response.raise_for_status()
-        gcs_urls = response.json().get("gcs_urls", [])
-
-    # Prepare FileData list
+    # Encode file bytes to Base64 and prepare FileData list
     processed_files = [
-        FileData(name=name, type=mtype, url=url)
-        for name, mtype, url in zip(filenames, mime_types, gcs_urls)
+        FileData(
+            name=name,
+            type=mtype,
+            url=base64.b64encode(file_bytes).decode('utf-8')
+        )
+        for name, mtype, file_bytes in zip(filenames, mime_types, file_bytes_list)
     ]
 
-    # Classify files
+    # Classify files (document vs others)
     _, document_files = classify_file(processed_files)
 
-    # Extract text content
+    # Extract text content for document files
     extracted_texts = [
-        extract_text(file, content)
-        for file, content in zip(processed_files, file_bytes_list)
+        extract_text(file, raw_content)
+        for file, raw_content in zip(processed_files, file_bytes_list)
         if file in document_files
     ]
     extracted_texts = [text for text in extracted_texts if text]
 
-    # Combine content
-    combined_content = "\n\n".join(extracted_texts) if extracted_texts else None
+    # Combine input content with extracted text
+    combined_content = "\n\n".join(filter(None, [content] + extracted_texts))
 
     return Message(
         content=combined_content,

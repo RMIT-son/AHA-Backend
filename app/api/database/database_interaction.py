@@ -46,15 +46,23 @@ async def call_add_message_endpoint(conversation_id: str, message: Message, resp
     try:
         base_url = DATA_URL
         
-        # Serialize the image if it exists
-        serialized_image = serialize_image(message.image)
+        # Convert and serialize images
+        serialized_files = []
+        if message.files:
+            for file in message.files:
+                file_dict = file.dict()  # convert Pydantic model to dict
+                if file.type.startswith("image/"):
+                    file_dict["url"] = serialize_image(file.url)
+                else:
+                    file_dict["url"] = file.url
+                serialized_files.append(file_dict)
         
         async with httpx.AsyncClient() as client:
             response_data = await client.post(
                 f"{base_url}/api/conversations/{conversation_id}/add_message",
                 json={
                     "content": message.content,
-                    "image": serialized_image,
+                    "files": serialized_files,
                     "timestamp": message.timestamp.isoformat(),
                     "response": response
                 },

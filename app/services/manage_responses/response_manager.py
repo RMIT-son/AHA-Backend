@@ -3,6 +3,7 @@ import dspy
 import asyncio
 from rich import print
 from app.schemas.message import Message
+from app.utils.common import classify_file
 from app.utils.text_processing import rrf
 from app.api.database import call_hybrid_search
 from typing import Any, AsyncGenerator, Awaitable
@@ -69,7 +70,9 @@ class ResponseManager:
             )
             llm_responder = model_manager.get_model("llm_responder")
             stream_predict = cls._create_stream_predict(llm_responder)
-            output_stream = stream_predict(prompt=input_data.content, image=input_data.image, recent_conversations=recent_conversations)
+            image_files, _ = classify_file(input_data.files or [])
+            image_url = image_files[0].url if image_files else None
+            output_stream = stream_predict(prompt=input_data.content, image=image_url, recent_conversations=recent_conversations)
             cls._log_execution_time(start_time, "LLM")
             return output_stream
         except Exception as e:
@@ -107,7 +110,9 @@ class ResponseManager:
             context = rrf(points=points, n_points=3, payload=["text"])
             rag_responder = model_manager.get_model("rag_responder")
             stream_predict = cls._create_stream_predict(rag_responder)
-            output_stream = stream_predict(context=context, prompt=input_data.content, image=input_data.image, recent_conversations=recent_conversations)
+            image_files, _ = classify_file(input_data.files or [])
+            image_url = image_files[0].url if image_files else None
+            output_stream = stream_predict(context=context, prompt=input_data.content, image=image_url, recent_conversations=recent_conversations)
             cls._log_execution_time(start_time, "RAG")
             return output_stream
         except Exception as e:
