@@ -1,3 +1,5 @@
+import asyncio
+from app.api.database.database_interaction import call_create_convo_endpoint
 from app.schemas.message import Message, FileData
 from fastapi import APIRouter, Body, Form, Request, UploadFile, File
 from app.utils import build_error_response, handle_file_processing
@@ -11,7 +13,11 @@ import httpx
 router = APIRouter(prefix="/api/conversations", tags=["Conversations"])
 
 @router.post("/generate_title/{user_id}")
-async def generate_title(user_id: str, request: Request):
+async def generate_title(
+    user_id: str,
+    content: Optional[str] = Form(None),
+    files: Optional[List[UploadFile]] = File(None)
+):
     """
     Generate a conversation title based on the user's initial message content or image.
 
@@ -44,24 +50,12 @@ async def generate_title(user_id: str, request: Request):
                 400
             )
         
-        body = await request.json()
-        files = None
-        content = None
-        
-        if "content" in body and isinstance(body["content"], str) and body["content"]:
-            content = body.get("content")
-            
-        if "files" in body and isinstance(body["files"], list) and body["files"]:
-            files = body.get("files", [])
-            
-        message = Message(
-            content=content,
-            files=[FileData(**f) for f in files] if files else None,
-            timestamp=body.get("timestamp")
-        )
-        
+        message = await handle_file_processing(content, files)
         title = await ResponseManager.summarize(message)
-        return JSONResponse(content={"title": title}, status_code=200)
+        
+        result = await call_create_convo_endpoint(user_id=user_id, title=title)
+        return result
+
     except Exception as e:
         return build_error_response(
             "TITLE_GENERATION_FAILED",
@@ -94,21 +88,21 @@ async def stream_message(
                 "Conversation ID and user ID are required",
                 400
             )
-        try:
-            message = await handle_file_processing(content, files)
+        message = await handle_file_processing(content, files)
 
-            if not message or (not message.content and not message.files):
-                return build_error_response(
-                    "INVALID_INPUT",
-                    "Message must contain either text or files",
-                    400
-                )
-        except Exception as e:
+        if not message.content and not message.files:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Message must contain either text or files",
+                400
+            )
+        if not message:
             return build_error_response(
                 code="PROCESSING_ERROR",
                 message=f"Error processing files: {str(e)}",
                 status=500
             )
+        
         return StreamingResponse(
             generate_response_stream(
                 message=message,

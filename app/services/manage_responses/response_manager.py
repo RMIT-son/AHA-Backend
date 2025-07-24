@@ -136,9 +136,13 @@ class ResponseManager:
             llm_responder = model_manager.get_model("llm_responder")
             summarizer = model_manager.get_model("summarizer")
             
-            if input_data.image and not input_data.content:
-                image = await convert_to_dspy_image(input_data.image) if input_data.image else None
-                response = await llm_responder.forward(image=image)
+            image_files, doc_files = classify_file(input_data.files or [])
+            if image_files and not (input_data.content or doc_files):
+                # Convert each image URL to dspy format
+                dspy_images = await asyncio.gather(
+                    *(convert_to_dspy_image(f.url) for f in image_files)
+                )
+                response = await llm_responder.forward(image=dspy_images[0])
                 summarized_context = await summarizer.forward(input=response)
             else:
                 prompt = input_data.content

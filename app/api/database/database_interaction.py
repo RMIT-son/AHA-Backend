@@ -74,7 +74,29 @@ async def call_add_message_endpoint(conversation_id: str, message: Message, resp
                 
     except Exception as e:
         print(f"Error calling add_message endpoint: {str(e)}")
+
+async def call_create_convo_endpoint(user_id: str, title: str):
+    """
+    Call the add_message endpoint via HTTP request.
+    """
+    try:
+        base_url = DATA_URL
     
+        async with httpx.AsyncClient() as client:
+            title_response = await client.post(
+                f"{base_url}/api/conversations/create/{user_id}",
+                json={"title": title},
+                timeout=30.0
+            )
+
+        if title_response.status_code != 200:
+            print(f"Failed to create conversation title: {title_response.status_code} - {title_response.text}")
+    
+        return title_response.json()
+    
+    except Exception as e:
+        print(f"Error calling create_convo endpoint: {str(e)}")
+            
 async def call_hybrid_search(
     query: str,
     collection_name: str,
