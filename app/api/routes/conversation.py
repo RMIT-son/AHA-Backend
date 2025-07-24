@@ -138,15 +138,15 @@ async def stream_message(conversation_id: str, user_id: str, request: Request):
         )
 
 @router.post("/speech_to_text")
-async def speech_to_text(filename: str) -> str:
+async def speech_to_text(audio: str) -> str:
     """
     Transcribe the given audio file using Faster-Whisper.
     
     Args:
-        filename (str): Path to the audio file to transcribe.
+        audio (str): Base64-encoded audio data (WAV format recommended).
 
     Returns:
         str: The transcribed text from the audio file.
     """
     
-    return await transcribe_audio(filename)
+    return await transcribe_audio(audio)
