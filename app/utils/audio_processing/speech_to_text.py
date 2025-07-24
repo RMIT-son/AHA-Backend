@@ -1,17 +1,17 @@
-from faster_whisper import WhisperModel
-
 import base64
 import tempfile
-from faster_whisper import WhisperModel
+import os
+from app.api.database.redis_client import get_config
+from openai import OpenAI
 
-def transcribe_audio(audio: str, model_size: str = "large-v3", device: str = "cuda") -> str:
+client = OpenAI(api_key=get_config("api_keys")["OPENAI_API_KEY"])
+
+async def transcribe_audio(audio: str) -> str:
     """
-    Transcribe base64-encoded audio using Faster-Whisper.
+    Transcribe base64-encoded audio using OpenAI Whisper API.
     
     Args:
-        audio (str): Base64-encoded audio data (WAV format recommended).
-        model_size (str): Size of Whisper model.
-        device (str): Device to run model on ("cuda" or "cpu").
+        audio (str): Base64-encoded audio data (WAV or MP3).
     
     Returns:
         str: Transcribed text.
@@ -19,16 +19,21 @@ def transcribe_audio(audio: str, model_size: str = "large-v3", device: str = "cu
     # Decode base64 to raw bytes
     audio_bytes = base64.b64decode(audio)
 
-    # Save to a temporary .wav file
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as temp_audio:
+    # Save to a temporary file
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_audio:
         temp_audio.write(audio_bytes)
         temp_audio.flush()
+        temp_audio_path = temp_audio.name
 
-        print("Loading Whisper model...")
-        model = WhisperModel(model_size, device=device, compute_type="float16")
+    try:
+        with open(temp_audio_path, "rb") as audio_file:
+            response = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file
+            )
+            result = response.text
+    finally:
+        if os.path.exists(temp_audio_path):
+            os.remove(temp_audio_path)
 
-        print("Transcribing...")
-        segments, _ = model.transcribe(temp_audio.name, beam_size=5)
-        result = "\n".join([segment.text for segment in segments])
-    
     return result

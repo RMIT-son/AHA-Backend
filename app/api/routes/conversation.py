@@ -1,5 +1,6 @@
 from app.schemas.message import Message
-from fastapi import APIRouter, Request 
+from app.schemas.audio import Audio
+from fastapi import APIRouter, Request
 from app.utils import build_error_response
 from app.utils.audio_processing.speech_to_text import transcribe_audio
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -138,15 +139,14 @@ async def stream_message(conversation_id: str, user_id: str, request: Request):
         )
 
 @router.post("/speech_to_text")
-async def speech_to_text(audio: str) -> str:
+async def speech_to_text(request: Audio) -> str:
     """
     Transcribe the given audio file using Faster-Whisper.
-    
+
     Args:
-        audio (str): Base64-encoded audio data (WAV format recommended).
+        request (Audio): Request containing base64-encoded audio data.
 
     Returns:
         str: The transcribed text from the audio file.
     """
-    
-    return await transcribe_audio(audio)
+    return await transcribe_audio(request.audio)
