@@ -1,7 +1,9 @@
+from datetime import datetime
 import dspy
 import asyncio
 from app.schemas.message import Message
 from app.api.database import call_add_message_endpoint
+from app.services.manage_responses.web_search import web_search, format_search_results
 from app.services.manage_responses import TextHandler, ImageHandler, TextImageHandler
 
 async def generate_response_stream(message: Message, user_id: str, conversation_id: str):
@@ -34,3 +36,30 @@ async def generate_response_stream(message: Message, user_id: str, conversation_
         yield f"data: ERROR - Invalid input: {str(ve)}\n\n"
     except Exception as e:
         yield f"data: ERROR - Stream processing failed: {str(e)}\n\n"
+
+async def handle_web_search(conversation_id: str, q: str):
+    """ 
+    This function is called when a web search is requested within a conversation.
+    Args:
+        conversation_id (str): The ID of the conversation.
+        q (str): The search query.
+    Returns:
+        dict: A dictionary containing the search results or an error message.
+    """
+    try:
+        # 1. Perform search
+        results = await web_search(q, manual_trigger=True)
+        # 2. Format assistant response
+        assistant_response = format_search_results(results)
+        # 3. Build message
+        message = Message(
+            content=q,
+            files=[],
+            timestamp=datetime.utcnow()
+        )
+        # 4. Save conversation message
+        await call_add_message_endpoint(conversation_id, message, assistant_response)
+        # 5. Return exactly what your conversation expects
+        return {"message": message, "assistant_response": assistant_response}
+    except Exception as e:
+        return {"error": f"Web search failed: {str(e)}"}

@@ -2,7 +2,7 @@ from app.schemas.message import Message
 from fastapi import APIRouter, Request 
 from app.utils import build_error_response
 from fastapi.responses import StreamingResponse, JSONResponse
-from app.utils.streaming import generate_response_stream
+from app.utils.streaming import generate_response_stream, handle_web_search
 from app.services.manage_responses import ResponseManager
 
 # Create a router with a common prefix and tag for all conversation-related endpoints
@@ -136,3 +136,32 @@ async def stream_message(conversation_id: str, user_id: str, request: Request):
             500
         )
 
+@router.post("/{conversation_id}/web/search")
+async def web_search(conversation_id: str, q: str):
+    """
+    Perform a web search and return formatted results.
+
+    Args:
+        conversation_id (str): The ID of the conversation.
+        q (str): The search query.
+
+    Returns:
+        JSONResponse: A JSON object containing the search results or an error message.
+    """
+    try:
+        if not conversation_id or not q:
+            return build_error_response(
+                "INVALID_INPUT",
+                "Conversation ID and search query are required",
+                400
+            )
+        
+        results = await handle_web_search(conversation_id, q)
+        return results
+    
+    except Exception as e:
+        return build_error_response(
+            "WEB_SEARCH_ERROR",
+            f"Web search failed: {str(e)}",
+            500
+        )
