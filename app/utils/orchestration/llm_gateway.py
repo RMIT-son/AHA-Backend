@@ -21,11 +21,9 @@ def set_lm_configure(config: dict = None):
     """
     api_keys = get_config("api_keys")
     lm = dspy.LM(
-            model=config["model"],
-            base_url=api_keys["OPEN_ROUTER_URL"],
-            api_key=api_keys["OPEN_ROUTER_API_KEY"],
+            model=config.get("model"),
+            api_key=api_keys.get("OPENAI_API_KEY"),
             cache=False,
             cache_in_memory=False,
-            track_usage=True,
         )
     return lm

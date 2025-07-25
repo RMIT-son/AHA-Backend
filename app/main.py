@@ -26,6 +26,7 @@ async def lifespan(app):
     try:
         # Load models immediately (fast)
         model_manager.load_models()
+        await model_manager.get_model("classifier").classify_text("Warmup text for classifier model")
 
         print("Application startup completed successfully!")
         yield

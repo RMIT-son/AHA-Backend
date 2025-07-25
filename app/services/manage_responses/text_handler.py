@@ -62,7 +62,7 @@ class TextHandler(ResponseManager):
                 translated_prompt, classifier = await asyncio.gather(translate_task, classifier_task)
                 
             # Classify text
-            text_result = await classifier.classify_text(prompt=translated_prompt.text)
+            text_result = await classifier.classify_text(prompt=translated_prompt.text[:100])
             
             cls._log_execution_time(start_time, "Text Classification")
             return text_result
