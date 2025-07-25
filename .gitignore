@@ -15,3 +15,5 @@ __pycache__/
 *$py.class
 *.wav
 2.6.0
+*.mp3
+*.wav

@@ -22,7 +22,7 @@ class LLM(dspy.Module):
 
         self.response = self.predictor_cls(self.signature_cls, temperature=self.temperature, max_tokens=self.max_tokens)
 
-    async def forward(self, image: Optional[dspy.Image] = None, prompt: str = None, recent_conversations: str = None) -> str:
+    async def forward(self, image: Optional[dspy.Image] = None, prompt: Optional[str] = None, recent_conversations: Optional[str] = None) -> str:
         """
         Generate a model response based on the provided prompt, image, and optional conversation history.
 
