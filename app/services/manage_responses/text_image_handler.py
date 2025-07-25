@@ -2,6 +2,8 @@ import asyncio
 from rich import print
 from app.schemas.message import Message
 from typing import AsyncGenerator
+
+from app.utils.common import classify_file
 from ..manage_responses import TextHandler, ImageHandler
 from app.utils.image_processing import convert_to_dspy_image
 
@@ -24,7 +26,13 @@ class TextImageHandler(TextHandler, ImageHandler):
             Exception: If classification or routing fails.
         """
         try:
-            input_data.image = await asyncio.create_task(convert_to_dspy_image(input_data.image))
+                        # Extract image files (e.g., image/jpeg, image/png, etc.)
+            image_files, _ = classify_file(input_data.files or [])
+            # Convert each image URL to dspy format
+            dspy_images = await asyncio.gather(
+                *(convert_to_dspy_image(f.url) for f in image_files)
+            )
+            input_data.files[0].url = dspy_images
 
             # Route based on classification
             return await cls.handle_text_response(input_data=input_data, user_id=user_id)

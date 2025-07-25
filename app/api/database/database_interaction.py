@@ -46,15 +46,23 @@ async def call_add_message_endpoint(conversation_id: str, message: Message, resp
     try:
         base_url = DATA_URL
         
-        # Serialize the image if it exists
-        serialized_image = serialize_image(message.image)
+        # Convert and serialize images
+        serialized_files = []
+        if message.files:
+            for file in message.files:
+                file_dict = file.dict()  # convert Pydantic model to dict
+                if file.type.startswith("image/"):
+                    file_dict["url"] = serialize_image(file.url)
+                else:
+                    file_dict["url"] = file.url
+                serialized_files.append(file_dict)
         
         async with httpx.AsyncClient() as client:
             response_data = await client.post(
                 f"{base_url}/api/conversations/{conversation_id}/add_message",
                 json={
                     "content": message.content,
-                    "image": serialized_image,
+                    "files": serialized_files,
                     "timestamp": message.timestamp.isoformat(),
                     "response": response
                 },
@@ -66,7 +74,29 @@ async def call_add_message_endpoint(conversation_id: str, message: Message, resp
                 
     except Exception as e:
         print(f"Error calling add_message endpoint: {str(e)}")
+
+async def call_create_convo_endpoint(user_id: str, title: str):
+    """
+    Call the add_message endpoint via HTTP request.
+    """
+    try:
+        base_url = DATA_URL
     
+        async with httpx.AsyncClient() as client:
+            title_response = await client.post(
+                f"{base_url}/api/conversations/create/{user_id}",
+                json={"title": title},
+                timeout=30.0
+            )
+
+        if title_response.status_code != 200:
+            print(f"Failed to create conversation title: {title_response.status_code} - {title_response.text}")
+    
+        return title_response.json()
+    
+    except Exception as e:
+        print(f"Error calling create_convo endpoint: {str(e)}")
+            
 async def call_hybrid_search(
     query: str,
     collection_name: str,

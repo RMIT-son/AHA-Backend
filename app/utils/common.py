@@ -1,7 +1,14 @@
+import csv
 import io
 import re
 import base64
+from typing import List, Tuple, Optional
+from PyPDF2 import PdfReader
+from docx import Document
 from datetime import datetime
+
+from fastapi import HTTPException, UploadFile
+from app.schemas.message import FileData, Message
 from fastapi.responses import JSONResponse
 
 def create_signature_with_doc(base_cls, docstring: str):
@@ -78,25 +85,155 @@ def serialize_image(image) -> str:
     if image is None:
         return None
 
+    if isinstance(image, list) and len(image) > 0:
+        image = image[0]
+
     if isinstance(image, str):
-        if image.startswith("data:"):
-            match = re.match(r"data:.*?;base64,(.*)", image)
-            return match.group(1) if match else None
-        return image
+        # Extract actual data:image/... if wrapped inside Image(url=...)
+        match_full = re.search(r"data:[^;]+;base64,[A-Za-z0-9+/=]+", image)
+        if match_full:
+            return match_full.group(0)  # return full data:image/... string
+
+        return image  # already normal string
 
     if isinstance(image, bytes):
-        return base64.b64encode(image).decode('utf-8')
+        return f"data:image/png;base64,{base64.b64encode(image).decode('utf-8')}"
 
     if hasattr(image, 'save'):  # PIL.Image.Image
         buffer = io.BytesIO()
         image.save(buffer, format='PNG')
-        return base64.b64encode(buffer.getvalue()).decode('utf-8')
+        return f"data:image/png;base64,{base64.b64encode(buffer.getvalue()).decode('utf-8')}"
 
-    # Extract from DSPy image object with a url field
+    # DSPy or similar object with url attribute
     if hasattr(image, 'url') and isinstance(image.url, str):
-        if image.url.startswith("data:"):
-            match = re.match(r"data:.*?;base64,(.*)", image.url)
-            return match.group(1) if match else None
+        match_full = re.search(r"data:[^;]+;base64,[A-Za-z0-9+/=]+", image.url)
+        if match_full:
+            return match_full.group(0)
         return image.url
 
     return None
+
+def extract_text(file_data: FileData, content_bytes: bytes) -> Optional[str]:
+    """    Extract text content from various file types.    
+    Args:
+        file_data (FileData): Metadata about the file including its type.
+        content_bytes (bytes): The raw bytes of the file content.
+    Returns:
+        Optional[str]: Extracted text content, or None if extraction fails.
+    """
+    try:
+        # Plain text and markdown
+        if file_data.type in {"text/plain", "text/markdown"}:
+            return content_bytes.decode("utf-8", errors="ignore")
+
+        # CSV
+        elif file_data.type == "text/csv":
+            try:
+                decoded = content_bytes.decode("utf-8", errors="ignore")
+                reader = csv.reader(io.StringIO(decoded))
+                rows = [" | ".join(row) for row in reader]
+                return "\n".join(rows) if rows else None
+            except Exception as e:
+                print(f"Failed to parse CSV {file_data.name}: {e}")
+                return None
+
+        # PDF
+        elif file_data.type == "application/pdf":
+            reader = PdfReader(io.BytesIO(content_bytes))
+            if reader.is_encrypted:
+                raise ValueError(f"PDF file '{file_data.name}' is encrypted and cannot be processed.")
+            extracted = []
+            for page_num, page in enumerate(reader.pages):
+                try:
+                    text = page.extract_text()
+                    if text:
+                        extracted.append(text)
+                except Exception as e:
+                    print(f"Failed to extract text from page {page_num} in {file_data.name}: {e}")
+            return "\n".join(extracted) if extracted else None
+
+        # DOCX
+        elif file_data.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            doc = Document(io.BytesIO(content_bytes))
+            paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+            tables = []
+            for table in doc.tables:
+                for row in table.rows:
+                    cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                    if cells:
+                        tables.append(" | ".join(cells))
+            all_text = paragraphs + tables
+            return "\n".join(all_text) if all_text else None
+
+    except Exception as e:
+        print(f"Failed to extract text from {file_data.name}: {e}")
+        return None
+
+
+def classify_file(files: List[FileData]) -> Tuple[List[FileData], List[FileData]]:
+    """
+    Classify files into images and documents based on their MIME types.
+
+    Args:
+        files (List[FileData]): List of FileData objects to classify.
+
+    Returns:
+        Tuple[List[FileData], List[FileData]]: Two lists - one for image files, one for document files.
+    """
+    image_files = [f for f in files if f.type.startswith("image/")]
+    doc_files = [f for f in files if f.type in ("text/plain", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")]
+    return image_files, doc_files
+
+async def handle_file_processing(content: str, files: List[UploadFile]) -> Message:
+    """
+    Process uploaded files, extract text content, and return a structured message.
+
+    Args:
+        conversation_id (str): The ID of the conversation to associate with the files.
+        content (str): Additional content provided by the user.
+        files (List[UploadFile]): List of files uploaded by the user.
+
+    Returns:
+        Message: A structured message containing the extracted text and file metadata.
+    """
+    if not files:  # No files provided
+        return Message(
+            content=content,
+            files=[],
+            timestamp=datetime.utcnow()
+        )
+
+    # Read file contents and metadata
+    file_bytes_list = [await file.read() for file in files]
+    filenames = [file.filename for file in files]
+    mime_types = [file.content_type for file in files]
+
+    # Encode file bytes to Base64 and prepare FileData list
+    processed_files = [
+        FileData(
+            name=name,
+            type=mtype,
+            url=base64.b64encode(file_bytes).decode('utf-8')
+        )
+        for name, mtype, file_bytes in zip(filenames, mime_types, file_bytes_list)
+    ]
+
+    # Classify files (document vs others)
+    _, document_files = classify_file(processed_files)
+
+    # Extract text content for document files
+    extracted_texts = [
+        extract_text(file, raw_content)
+        for file, raw_content in zip(processed_files, file_bytes_list)
+        if file in document_files
+    ]
+    extracted_texts = [text for text in extracted_texts if text]
+
+    # Combine input content with extracted text
+    combined_content = "\n\n".join(filter(None, [content] + extracted_texts))
+
+    return Message(
+        content=combined_content,
+        files=processed_files,
+        timestamp=datetime.utcnow()
+    )
