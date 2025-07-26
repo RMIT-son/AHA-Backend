@@ -1,10 +1,8 @@
+import os
 import base64
 import tempfile
-import os
 from app.api.database.redis_client import get_config
-from openai import OpenAI
-
-client = OpenAI(api_key=get_config("api_keys")["OPENAI_API_KEY"])
+from app.utils.orchestration.llm_gateway import client
 
 async def transcribe_audio(audio: str) -> str:
     """
@@ -28,7 +26,7 @@ async def transcribe_audio(audio: str) -> str:
     try:
         with open(temp_audio_path, "rb") as audio_file:
             response = client.audio.transcriptions.create(
-                model="whisper-1",
+                model=get_config("stt_config").get("model"),
                 file=audio_file
             )
             result = response.text

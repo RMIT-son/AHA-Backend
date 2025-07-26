@@ -9,7 +9,7 @@ class TextImageHandler(TextHandler, ImageHandler):
     """Handler specialized for text+image inputs."""
 
     @classmethod
-    async def handle_text_image_response(cls, input_data: Message = None, user_id: str = None) -> AsyncGenerator[str, None]:
+    async def handle_text_image_response(cls, input_data: Message = None) -> AsyncGenerator[str, None]:
         """
         Handle a user message that contains both text and image by classifying each in parallel and routing the response.
 
@@ -24,10 +24,11 @@ class TextImageHandler(TextHandler, ImageHandler):
             Exception: If classification or routing fails.
         """
         try:
-            input_data.image = await asyncio.create_task(convert_to_dspy_image(input_data.image))
-
+            input_data.images = await asyncio.gather(*[
+                convert_to_dspy_image(image) for image in input_data.images
+            ])
             # Route based on classification
-            return await cls.handle_text_response(input_data=input_data, user_id=user_id)
+            return await cls.handle_text_response(input_data=input_data)
 
         except Exception as e:
             print(f"Text+Image response handling failed: {str(e)}")

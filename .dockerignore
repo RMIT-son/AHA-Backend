@@ -23,8 +23,6 @@ venv/
 
 # Data / Models / Weights
 tests/
-huggingface_models/
-zero_shot_image_classification/
 
 # Build artifacts
 dist/

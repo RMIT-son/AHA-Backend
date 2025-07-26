@@ -1,17 +1,17 @@
-from app.schemas.message import Message
+from fastapi import APIRouter
 from app.schemas.audio import Audio
-from fastapi import APIRouter, Request
+from app.schemas.message import Message
 from app.utils import build_error_response
-from app.utils.audio_processing.speech_to_text import transcribe_audio
-from fastapi.responses import StreamingResponse, JSONResponse
 from app.utils.streaming import generate_response_stream
 from app.services.manage_responses import ResponseManager
+from fastapi.responses import StreamingResponse, JSONResponse
+from app.utils.audio_processing.speech_to_text import transcribe_audio
 
 # Create a router with a common prefix and tag for all conversation-related endpoints
 router = APIRouter(prefix="/api/conversations", tags=["Conversations"])
 
-@router.post("/generate_title/{user_id}")
-async def generate_title(user_id: str, request: Request):
+@router.post("/generate_title")
+async def generate_title(message: Message):
     """
     Generate a conversation title based on the user's initial message content or image.
 
@@ -37,28 +37,6 @@ async def generate_title(user_id: str, request: Request):
         - 500: If title generation fails due to internal error or model issues.
     """
     try:
-        if not user_id:
-            return build_error_response(
-                "INVALID_INPUT",
-                "User ID is required",
-                400
-            )
-        
-        body = await request.json()
-        image_data = None
-        content = None
-        
-        if "content" in body and isinstance(body["content"], str) and body["content"]:
-            content = body.get("content")
-            
-        if "files" in body and isinstance(body["files"], list) and body["files"]:
-            image_data = body["files"][0].get("data")
-            
-        message = Message(
-            content=content,
-            image=image_data,
-            timestamp=body.get("timestamp")
-        )
         
         title = await ResponseManager.summarize(message)
         return JSONResponse(content={"title": title}, status_code=200)
@@ -69,8 +47,8 @@ async def generate_title(user_id: str, request: Request):
             500
         )
     
-@router.post("/{conversation_id}/{user_id}/stream")
-async def stream_message(conversation_id: str, user_id: str, request: Request):
+@router.post("/stream")
+async def stream_message(message: Message):
     """
     Stream a response to a user's message (text, image, or both) and update the conversation.
 
@@ -83,37 +61,8 @@ async def stream_message(conversation_id: str, user_id: str, request: Request):
         StreamingResponse: A streamed response via Server-Sent Events (SSE).
     """
     try:
-        if not conversation_id or not user_id:
-            return build_error_response(
-                "INVALID_INPUT",
-                "Conversation ID and user ID are required",
-                400
-            )
         
-        body = await request.json()
-        image_data = None
-        content = None
-        
-        if "content" in body and isinstance(body["content"], str) and body["content"]:
-            content = body.get("content")
-            
-        if "files" in body and isinstance(body["files"], list) and body["files"]:
-            image_data = body["files"][0].get("data")
-            
-        message = Message(
-            content=content,
-            image=image_data,
-            timestamp=body.get("timestamp")
-        )
-        
-        if not message:
-            return build_error_response(
-                "INVALID_INPUT",
-                "Message is required",
-                400
-            )
-        
-        if not message.content and not message.image:
+        if not message.content and not message.images:
             return build_error_response(
                 "INVALID_INPUT",
                 "Message must contain either text content or image",
@@ -121,7 +70,7 @@ async def stream_message(conversation_id: str, user_id: str, request: Request):
             )
 
         return StreamingResponse(
-            generate_response_stream(message=message, user_id=user_id, conversation_id=conversation_id),
+            generate_response_stream(message=message),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",

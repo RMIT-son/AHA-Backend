@@ -17,7 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 
 # Install Python dependencies and cache this layer
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install uv
+
+RUN uv pip install --system --no-cache-dir -r requirements.txt
 
 # Copy the rest of the app (this layer will change often)
 COPY . .

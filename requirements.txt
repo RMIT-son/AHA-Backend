@@ -1,24 +1,20 @@
 # Core Libraries
-openai
-python-dotenv
-requests
-pydantic
+openai==1.97.1
+python-dotenv==1.1.1
+requests==2.32.4
+pydantic==2.11.7
+
 # FastAPI & Web Server
-fastapi[standard]
-uvicorn
+fastapi==0.116.1
+uvicorn==0.35.0
+
 # LLM Ecosystem
-dspy
-# Document Handling
-googletrans
-# Embedding & Vector Stores
-sentence_transformers
-transformers
-qdrant_client
+dspy==2.6.27
+
 # Databases
-redis
-# Audio Processing
-pyaudio
-faster-whisper
-torch==2.7.0 
-torchvision==0.22.0 
+redis==6.2.0
+
+# PyTorch CPU-only (smaller, more compatible)
+torch==2.7.0
+torchvision==0.22.0
 torchaudio==2.7.0

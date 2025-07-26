@@ -1,5 +1,5 @@
 import dspy
-from typing import Optional, Union
+from typing import Optional, List
 from .llm import LLM, LLMResponse
 from app.utils import create_signature_with_doc
 
@@ -15,7 +15,7 @@ class RAG(LLM):
         self.signature_cls = create_signature_with_doc(RAGResponse, config["instruction"])
         self.response = self.predictor_cls(self.signature_cls, temperature=self.temperature, max_tokens=self.max_tokens)
 
-    async def forward(self, context: str = None, image: Optional[Union[str, dspy.Image]] = None, prompt: str = None, recent_conversations: str = None) -> str:
+    async def forward(self, context: str = None, images: Optional[List[dspy.Image]] = None, prompt: str = None, recent_conversations: str = None) -> str:
         """
         Generate a model response using optional context, prompt, image input, and recent conversations.
 
@@ -34,7 +34,7 @@ class RAG(LLM):
         response = await self.response.acall(
             context=context, 
             prompt=prompt, 
-            image=image, 
+            images=images, 
             recent_conversations=recent_conversations
         )
         return response.response

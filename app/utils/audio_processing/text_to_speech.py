@@ -1,17 +1,14 @@
 from pathlib import Path
-from openai import OpenAI
 from app.api.database.redis_client import get_config
+from app.utils.orchestration.llm_gateway import client
 
-api_keys = get_config("api_keys")
-
-def generate_audio(text: str, instruction: str):
-    client = OpenAI(api_key=api_keys.get("OPENAI_API_KEY"))
+def generate_audio(text: str):
     speech_file_path = Path(__file__).parent / "speech.mp3"
 
     with client.audio.speech.with_streaming_response.create(
-        model="gpt-4o-mini-tts",
-        voice="coral",
+        model=get_config("tts_config").get("model"),
+        voice=get_config("tts_config").get("voice"),
         input=text,
-        instructions=instruction,
+        instructions=get_config("tts_config").get("instructions"),
     ) as response:
         response.stream_to_file(speech_file_path)

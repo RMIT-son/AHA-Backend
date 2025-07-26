@@ -1,12 +1,8 @@
 import dspy
 from typing import Dict, Any
+from app.models import RAG, LLM, Summarizer
 from app.api.database.redis_client import get_config
-from app.models import RAG, LLM, Classifier, Summarizer
 from app.utils.orchestration.llm_gateway import set_lm_configure
-from app.utils import (
-    get_dense_embedder, 
-    get_sparse_embedder_and_tokenizer
-)
 
 class ModelManager:
     """Manages the lifecycle of ML models."""
@@ -21,7 +17,7 @@ class ModelManager:
 
         This includes:
         - Configuring the DSPy language model environment.
-        - Initializing task-specific LLM instances (e.g., responder, RAG, summarizer, classifier).
+        - Initializing task-specific LLM instances (e.g., responder, RAG, summarizer).
         - Loading dense and sparse embedding models.
 
         After successful execution, all models are stored in `self.models`.
@@ -35,11 +31,6 @@ class ModelManager:
         self.models["llm_responder"] = LLM(config=get_config("llm"))
         self.models["rag_responder"] = RAG(config=get_config("rag"))
         self.models["summarizer"] = Summarizer(config=get_config("summarizer"))
-        self.models["classifier"] = Classifier(config=get_config("task_classifier"))
-        
-        # Load embedding models
-        self.models["dense_embedder"] = get_dense_embedder()
-        self.models["sparse_tokenizer"], self.models["sparse_embedder"] = get_sparse_embedder_and_tokenizer()
         
         print("All models loaded successfully!")
     

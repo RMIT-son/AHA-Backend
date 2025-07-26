@@ -1,3 +1,4 @@
+import asyncio
 from rich import print
 from typing import AsyncGenerator
 from app.schemas.message import Message
@@ -8,7 +9,7 @@ class ImageHandler(ResponseManager):
     """Handler specialized for image-only inputs."""
 
     @classmethod
-    async def handle_image_response(cls, input_data: Message = None, user_id: str = None) -> AsyncGenerator[str, None]:
+    async def handle_image_response(cls, input_data: Message = None) -> AsyncGenerator[str, None]:
         """
         Convert image data from base64 to dspy image for LLM
 
@@ -22,8 +23,10 @@ class ImageHandler(ResponseManager):
             Exception: If classification or routing fails.
         """
         try:
-            input_data.image = await convert_to_dspy_image(input_data.image)
-            return await cls.handle_llm_response(input_data=input_data, user_id=user_id)
+            input_data.images = await asyncio.gather(*[
+                convert_to_dspy_image(image) for image in input_data.images
+            ])
+            return await cls.handle_llm_response(input_data=input_data)
         except Exception as e:
             print(f"Image response handling failed: {str(e)}")
             raise Exception(f"Image response failed: {str(e)}")

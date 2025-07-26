@@ -1,21 +1,19 @@
 import dspy
-import asyncio
 from app.schemas.message import Message
-from app.api.database import call_add_message_endpoint
 from app.services.manage_responses import TextHandler, ImageHandler, TextImageHandler
 
-async def generate_response_stream(message: Message, user_id: str, conversation_id: str):
+async def generate_response_stream(message: Message):
     try:
         # Determine appropriate handler based on message content
-        if message.content and not message.image:
+        if message.content and not message.images:
             handler = TextHandler()
-            output_stream = await handler.handle_text_response(input_data=message, user_id=user_id)
-        elif message.image and not message.content:
+            output_stream = await handler.handle_text_response(input_data=message)
+        elif message.images and not message.content:
             handler = ImageHandler()
-            output_stream = await handler.handle_image_response(input_data=message, user_id=user_id)
-        elif message.content and message.image:
+            output_stream = await handler.handle_image_response(input_data=message)
+        elif message.content and message.images:
             handler = TextImageHandler()
-            output_stream = await handler.handle_text_image_response(input_data=message, user_id=user_id)
+            output_stream = await handler.handle_text_image_response(input_data=message)
         else:
             yield f"data: ERROR - Empty message content and image\n\n"
             return
@@ -26,10 +24,7 @@ async def generate_response_stream(message: Message, user_id: str, conversation_
                 yield f"data: {chunk.chunk}\n\n"
             elif isinstance(chunk, dspy.Prediction):
                 yield "data: [DONE]\n\n"
-                # Call add_message endpoint via HTTP
-                asyncio.create_task(
-                    call_add_message_endpoint(conversation_id=conversation_id, message=message, response=chunk.response)
-                )
+                
     except ValueError as ve:
         yield f"data: ERROR - Invalid input: {str(ve)}\n\n"
     except Exception as e:
